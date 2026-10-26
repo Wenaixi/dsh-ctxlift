@@ -2,3 +2,6 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# 隔离实例验收临时产物
+.dsh-acceptance/
