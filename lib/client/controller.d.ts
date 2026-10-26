@@ -1,6 +1,6 @@
 /**
- * DSH Workspace Instructions Client Settings Controller
- * Pure state machine headless controller following DSH official patterns
+ * DSH 工作区指令客户端设置控制器
+ * 纯状态机无头控制器，遵循 DSH 官方模式
  */
 import type { GranularInstructionsConfig, GlobalFilePreference, TruncateMode } from '../config.js';
 import type { GlobalFileResolution } from '../engine/files.js';
@@ -33,9 +33,11 @@ export interface RemoteClientGateway {
     };
 }
 export interface ControllerState {
+    /** 截断配置状态 */
     config: GranularInstructionsConfig;
     configSaving: boolean;
     configError?: string;
+    /** 全局文件编辑器状态 */
     globalFileLoading: boolean;
     globalFileSaving: boolean;
     globalFileError?: string;
@@ -57,7 +59,7 @@ export declare class InstructionsSettingsController {
     private notify;
     private syncFromScope;
     /**
-     * 原子修改配置字段，严格遵循操作即写与单次原子 ops 规范
+     * 原子修改配置字段，遵循操作即写与单次原子 ops 规范
      */
     updateConfigField(path: string[], value: any): Promise<boolean>;
     /**

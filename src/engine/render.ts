@@ -1,24 +1,20 @@
 /**
- * DSH Workspace Instructions Granular Render and Truncation Engine
+ * DSH 工作区指令渲染与 UTF-8 安全截断引擎
  */
 
 import { Buffer } from 'node:buffer';
-import type {
-  FilePolicyConfig,
-  GranularInstructionsConfig,
-  TruncateDirection
-} from '../config.js';
+import type { FilePolicyConfig, GranularInstructionsConfig } from '../config.js';
 
 export type InstructionFileCategory = 'global' | 'project-claude' | 'project-agents' | 'subdirectory';
 
 export interface InstructionFileItem {
-  /** 文件完整路径或标准路径标识（如 ~/.dsh/AGENTS.md, /repo/CLAUDE.md） */
+  /** 文件完整路径 */
   path: string;
-  /** 用于展示给大模型的引用标识（如 ~/.dsh/AGENTS.md, CLAUDE.md） */
+  /** 展示给大模型的引用标识，如 ~/.dsh/AGENTS.md */
   displayPath: string;
-  /** 文件归属分类，用于匹配独立策略 */
+  /** 文件归属分类，用于匹配对应策略 */
   category: InstructionFileCategory;
-  /** 文本全文内容 */
+  /** 文件全文内容 */
   content: string;
 }
 
@@ -38,14 +34,16 @@ export interface RenderResult {
   totalBytes: number;
 }
 
+/** 截断时附加的提示文案 */
+const TRUNCATE_NOTICE = '[Workspace instruction truncated: showing first bytes within byte budget]';
+
 /**
- * UTF-8 字符边界安全的字节截断函数
- * 支持从尾部截断 (tail, 保留头部) 或从头部截断 (head, 保留尾部)
+ * 按 UTF-8 字符边界安全截断，避免切断多字节字符产生乱码
+ * 当前固定保留开头、截断尾部；如需头部优先可在此扩展
  */
 export function truncateUtf8Safe(
   text: string,
   maxBytes: number,
-  direction: TruncateDirection = 'tail',
   notice?: string
 ): { text: string; isTruncated: boolean } {
   if (maxBytes <= 0) {
@@ -65,61 +63,38 @@ export function truncateUtf8Safe(
     return { text: noticeText.trim(), isTruncated: true };
   }
 
-  if (direction === 'tail') {
-    // 保留头部，截断尾部：取前 allowedBytes 字节
-    let cutEnd = allowedBytes;
+  // 保留开头、截断尾部：先取前 allowedBytes 字节，再回退到合法字符边界
+  let cutEnd = allowedBytes;
 
-    // 回退 UTF-8 续字节，避免乱码
-    // UTF-8 续字节的二进制特征为 10xxxxxx (0x80 ~ 0xBF)
-    // 多字节起始字节：110xxxxx (2字节), 1110xxxx (3字节), 11110xxx (4字节)
-    while (cutEnd > 0 && (rawBuffer[cutEnd]! & 0xc0) === 0x80) {
-      cutEnd -= 1;
-    }
-    // 如果命中多字节起始字节但截断后长度不够，则必须退回起始字节前
-    if (cutEnd > 0) {
-      const lead = rawBuffer[cutEnd - 1]!;
-      if ((lead & 0xe0) === 0xc0 && cutEnd - 1 + 2 > allowedBytes) cutEnd -= 1;
-      else if ((lead & 0xf0) === 0xe0 && cutEnd - 1 + 3 > allowedBytes) cutEnd -= 1;
-      else if ((lead & 0xf8) === 0xf0 && cutEnd - 1 + 4 > allowedBytes) cutEnd -= 1;
-    }
-
-    // 寻找最近的自然换行符，尽量保证行完整
-    const candidateBuf = rawBuffer.subarray(0, cutEnd);
-    const lastNewline = candidateBuf.lastIndexOf(0x0a);
-    const safeCut = lastNewline > Math.floor(allowedBytes * 0.7) ? lastNewline : cutEnd;
-
-    const truncatedSlice = rawBuffer.subarray(0, safeCut).toString('utf-8');
-    const finalText = noticeText ? `${truncatedSlice.trimEnd()}${noticeText}` : truncatedSlice;
-    return { text: finalText, isTruncated: true };
-  } else {
-    // 保留尾部，截断头部：取后 allowedBytes 字节
-    let cutStart = rawBuffer.byteLength - allowedBytes;
-
-    // 前移至合法的 UTF-8 字符起始位置
-    while (cutStart < rawBuffer.byteLength && (rawBuffer[cutStart]! & 0xc0) === 0x80) {
-      cutStart += 1;
-    }
-
-    // 寻找最近的自然换行符
-    const nextNewline = rawBuffer.indexOf(0x0a, cutStart);
-    const safeStart = (nextNewline !== -1 && nextNewline < cutStart + Math.floor(allowedBytes * 0.3))
-      ? nextNewline + 1
-      : cutStart;
-
-    const truncatedSlice = rawBuffer.subarray(safeStart).toString('utf-8');
-    const prefixNotice = notice ? `${notice}\n\n` : '';
-    const finalText = `${prefixNotice}${truncatedSlice.trimStart()}`;
-    return { text: finalText, isTruncated: true };
+  // UTF-8 续字节的二进制特征为 10xxxxxx（0x80 到 0xBF），跳过它们可回到字符起点
+  while (cutEnd > 0 && (rawBuffer[cutEnd]! & 0xc0) === 0x80) {
+    cutEnd -= 1;
   }
+  // 多字节起始字节：110xxxxx（2字节）、1110xxxx（3字节）、11110xxx（4字节）
+  // 若起始字节被切开且剩余长度不足以补全整个字符，则退回起始字节之前
+  if (cutEnd > 0) {
+    const lead = rawBuffer[cutEnd - 1]!;
+    if ((lead & 0xe0) === 0xc0 && cutEnd - 1 + 2 > allowedBytes) cutEnd -= 1;
+    else if ((lead & 0xf0) === 0xe0 && cutEnd - 1 + 3 > allowedBytes) cutEnd -= 1;
+    else if ((lead & 0xf8) === 0xf0 && cutEnd - 1 + 4 > allowedBytes) cutEnd -= 1;
+  }
+
+  // 尽量在完整行边界截断：最近的换行符位置若处于后 30% 区间则使用它
+  const candidateBuf = rawBuffer.subarray(0, cutEnd);
+  const lastNewline = candidateBuf.lastIndexOf(0x0a);
+  const safeCut = lastNewline > Math.floor(allowedBytes * 0.7) ? lastNewline : cutEnd;
+
+  const truncatedSlice = rawBuffer.subarray(0, safeCut).toString('utf-8');
+  const finalText = noticeText ? `${truncatedSlice.trimEnd()}${noticeText}` : truncatedSlice;
+  return { text: finalText, isTruncated: true };
 }
 
 /**
- * 根据独立文件规则处理单个文件
+ * 按单层策略处理一个指令文件
  */
 export function processFileWithPolicy(
   file: InstructionFileItem,
-  policy: FilePolicyConfig,
-  noticePolicy: 'compact' | 'silent'
+  policy: FilePolicyConfig
 ): TruncatedFileResult | null {
   if (policy.mode === 'disabled') {
     return null;
@@ -152,16 +127,7 @@ export function processFileWithPolicy(
     };
   }
 
-  const notice = noticePolicy === 'compact'
-    ? `[Workspace instruction truncated: showing ${policy.truncateFrom === 'head' ? 'latest' : 'first'} bytes within ${maxBytes} byte budget]`
-    : undefined;
-
-  const { text, isTruncated } = truncateUtf8Safe(
-    file.content,
-    maxBytes,
-    policy.truncateFrom ?? 'tail',
-    notice
-  );
+  const { text, isTruncated } = truncateUtf8Safe(file.content, maxBytes, TRUNCATE_NOTICE);
 
   return {
     path: file.path,
@@ -175,7 +141,7 @@ export function processFileWithPolicy(
 }
 
 /**
- * 格式化输出为 DSH 原生兼容的 <system-reminder> 结构
+ * 拼接渲染为 DSH 原生兼容的 system-reminder 结构
  */
 export function renderGranularInstructionSet(
   files: InstructionFileItem[],
@@ -198,7 +164,7 @@ export function renderGranularInstructionSet(
 
   for (const file of files) {
     const policy = getPolicy(file.category);
-    const result = processFileWithPolicy(file, policy, config.noticePolicy);
+    const result = processFileWithPolicy(file, policy);
     if (result && result.content.trim().length > 0) {
       processedList.push(result);
     }
@@ -212,7 +178,6 @@ export function renderGranularInstructionSet(
     };
   }
 
-  // 拼接模板与官方格式严格保持一致
   const sections = processedList.map((f) => {
     return `Instructions from: ${f.displayPath}\n\n${f.content.trim()}`;
   });

@@ -105,8 +105,7 @@ try {
   };
   const unlimRes = processFileWithPolicy(
     mockFile,
-    { mode: 'unlimited', maxBytes: 500, direction: 'tail' },
-    'compact'
+    { mode: 'unlimited', maxBytes: 500 }
   );
   assert.ok(unlimRes);
   assert.equal(unlimRes.isTruncated, false);
@@ -116,20 +115,18 @@ try {
   // 3.2 truncate 模式
   const truncRes = processFileWithPolicy(
     mockFile,
-    { mode: 'truncate', maxBytes: 256, truncateFrom: 'tail' },
-    'compact'
+    { mode: 'truncate', maxBytes: 256 }
   );
   assert.ok(truncRes);
   assert.equal(truncRes.isTruncated, true);
   assert.ok(Buffer.byteLength(truncRes.content, 'utf-8') <= 256);
-  assert.ok(truncRes.content.includes('[Workspace instruction truncated:'));
+  assert.ok(truncRes.content.includes('Workspace instruction truncated'));
   console.log('✔ [3.2] truncate policy strictly enforces maxBytes with informative notice');
 
   // 3.3 disabled 模式
   const disRes = processFileWithPolicy(
     mockFile,
-    { mode: 'disabled', maxBytes: 1000, direction: 'tail' },
-    'compact'
+    { mode: 'disabled', maxBytes: 1000 }
   );
   assert.equal(disRes, null);
   console.log('✔ [3.3] disabled policy returns null and excludes file completely');

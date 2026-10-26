@@ -9,8 +9,8 @@ test('InstructionsSettingsController manages configuration state and updates', a
     getSnapshot: () => ({
       value: {
         globalPreference: 'CLAUDE.md',
-        globalPolicy: { mode: 'unlimited', maxBytes: 131072, truncateFrom: 'tail' },
-        projectClaudePolicy: { mode: 'truncate', maxBytes: 32768, truncateFrom: 'tail' }
+        globalPolicy: { mode: 'unlimited', maxBytes: 131072 },
+        projectClaudePolicy: { mode: 'truncate', maxBytes: 32768 }
       },
       revision: 1
     }),

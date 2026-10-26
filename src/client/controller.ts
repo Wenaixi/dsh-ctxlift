@@ -1,13 +1,12 @@
 /**
- * DSH Workspace Instructions Client Settings Controller
- * Pure state machine headless controller following DSH official patterns
+ * DSH 工作区指令客户端设置控制器
+ * 纯状态机无头控制器，遵循 DSH 官方模式
  */
 
 import type {
   GranularInstructionsConfig,
   GlobalFilePreference,
-  TruncateMode,
-  TruncateDirection
+  TruncateMode
 } from '../config.js';
 import type { GlobalFileResolution } from '../engine/files.js';
 
@@ -32,12 +31,12 @@ export interface RemoteClientGateway {
 }
 
 export interface ControllerState {
-  // 截断配置状态
+  /** 截断配置状态 */
   config: GranularInstructionsConfig;
   configSaving: boolean;
   configError?: string;
 
-  // 全局文件编辑器状态
+  /** 全局文件编辑器状态 */
   globalFileLoading: boolean;
   globalFileSaving: boolean;
   globalFileError?: string;
@@ -65,12 +64,10 @@ export class InstructionsSettingsController {
 
     const baseConfig: GranularInstructionsConfig = initialConfig ?? {
       globalPreference: 'auto',
-      globalPolicy: { mode: 'unlimited', maxBytes: 131072, truncateFrom: 'tail' },
-      projectClaudePolicy: { mode: 'truncate', maxBytes: 65536, truncateFrom: 'tail' },
-      projectAgentsPolicy: { mode: 'truncate', maxBytes: 65536, truncateFrom: 'tail' },
-      subdirectoriesPolicy: { mode: 'truncate', maxBytes: 32768, truncateFrom: 'tail' },
-      noticePolicy: 'compact',
-      totalMaxBytes: 0
+      globalPolicy: { mode: 'unlimited', maxBytes: 131072 },
+      projectClaudePolicy: { mode: 'truncate', maxBytes: 65536 },
+      projectAgentsPolicy: { mode: 'truncate', maxBytes: 65536 },
+      subdirectoriesPolicy: { mode: 'truncate', maxBytes: 32768 }
     };
 
     this.state = {
@@ -130,7 +127,7 @@ export class InstructionsSettingsController {
   }
 
   /**
-   * 原子修改配置字段，严格遵循操作即写与单次原子 ops 规范
+   * 原子修改配置字段，遵循操作即写与单次原子 ops 规范
    */
   async updateConfigField(path: string[], value: any): Promise<boolean> {
     if (!this.scope || this.mutationLock) return false;
