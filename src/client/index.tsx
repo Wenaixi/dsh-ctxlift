@@ -47,3 +47,10 @@ export function apply(ctx: any) {
     });
   }
 }
+
+export default {
+  name,
+  inject,
+  apply
+};
+

@@ -4,7 +4,7 @@
 import { type RenderResult } from './render.js';
 import type { GranularInstructionsConfig } from '../config.js';
 export interface PreStepEventPayload {
-    agent: {
+    agent?: {
         cwd?: string;
         workspace?: {
             root?: string;
@@ -13,6 +13,8 @@ export interface PreStepEventPayload {
             nextStep?: any[];
         };
     };
+    cwd?: string;
+    workspaceDir?: string;
     messages: any[];
     step: number;
     signal?: AbortSignal;

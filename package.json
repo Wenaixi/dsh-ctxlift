@@ -16,16 +16,20 @@
       "import": "./lib/client/index.js",
       "default": "./lib/client/index.js"
     },
-    "./typert": {
+    "./remote": {
       "types": "./lib/typert.d.ts",
       "import": "./lib/typert.js",
       "default": "./lib/typert.js"
     }
   },
   "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web"
-    }
+    },
+    "manifestVersion": 1
   },
   "engines": {
     "node": ">=20.0.0",

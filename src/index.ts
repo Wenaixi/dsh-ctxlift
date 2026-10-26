@@ -9,28 +9,35 @@ import { InstructionsGuardService } from './remote.js';
 
 export const name = 'dsh-ctxlift';
 
-// 声明可选服务依赖
-export const inject = {
-  optional: ['typertRemote']
-};
+// 零阻碍立即激活依赖声明
+export const inject = [];
 
 export function apply(ctx: any, rawConfig?: Partial<GranularInstructionsConfig>) {
   const config = resolveConfig(rawConfig);
   const coordinator = new InstructionCoordinator(config);
   const guardService = new InstructionsGuardService();
 
-  // 1. 注册 Typert Remote RPC 服务通道
-  // 若当前环境装载了 typertRemote 网关，则向网关注册服务
-  if (ctx.typertRemote) {
-    try {
-      ctx.typertRemote.register('instructionsGuard', guardService);
-    } catch {
-      // 容错注册
+  // 1. 注册 Typert Remote RPC 服务通道（使用安全 get 避免触碰未声明属性代理拦截）
+  try {
+    const typertRemote = typeof ctx.get === 'function' ? ctx.get('typertRemote') : undefined;
+    if (typertRemote?.register) {
+      typertRemote.register('instructionsGuard', guardService);
     }
+  } catch {
+    // 容错处理
   }
 
   // 同时将服务直接绑定在 Context 上供同进程内调用
-  ctx.set('instructionsGuard', guardService);
+  try {
+    if (typeof ctx.provide === 'function') {
+      ctx.provide('instructionsGuard');
+      ctx.instructionsGuard = guardService;
+    } else if (typeof ctx.set === 'function') {
+      ctx.set('instructionsGuard', guardService);
+    }
+  } catch {
+    // 容错处理
+  }
 
   // 2. 挂载 agent/pre-step 洋葱圈拦截器
   ctx.on('agent/pre-step', async (payload: any, next: () => Promise<any>) => {
@@ -45,3 +52,10 @@ export function apply(ctx: any, rawConfig?: Partial<GranularInstructionsConfig>)
     }
   });
 }
+
+export default {
+  name,
+  inject,
+  apply
+};
+

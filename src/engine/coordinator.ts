@@ -7,11 +7,13 @@ import { renderGranularInstructionSet, type RenderResult } from './render.js';
 import type { GranularInstructionsConfig } from '../config.js';
 
 export interface PreStepEventPayload {
-  agent: {
+  agent?: {
     cwd?: string;
     workspace?: { root?: string };
     inbox?: { nextStep?: any[] };
   };
+  cwd?: string;
+  workspaceDir?: string;
   messages: any[];
   step: number;
   signal?: AbortSignal;
@@ -80,7 +82,7 @@ export class InstructionCoordinator {
     // 1. 等待下游与内层插件执行完毕
     const decision = await next();
 
-    const workspaceDir = payload.agent.cwd ?? process.cwd();
+    const workspaceDir = payload?.agent?.cwd ?? payload?.cwd ?? payload?.workspaceDir ?? process.cwd();
     const rendered = this.getRenderedInstructions(workspaceDir);
 
     // 如果所有文件都被禁用或为空，且有官方指令，则将其移除
