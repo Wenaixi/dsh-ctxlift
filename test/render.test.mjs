@@ -34,7 +34,7 @@ test('3. processFileWithPolicy: unlimited 模式完整保留大文本', () => {
   assert.ok(rawBytes > 10000, '测试文本必须大于 10KB');
 
   const fileItem = {
-    path: 'C:/Users/Administrator/.dsh/AGENTS.md',
+    path: '/home/user/.dsh/AGENTS.md',
     displayPath: '~/.dsh/AGENTS.md',
     category: 'global',
     content: largeContent
@@ -70,7 +70,7 @@ test('4. processFileWithPolicy: disabled 模式完全剔除文件', () => {
 test('5. renderGranularInstructionSet: 多层级精细独立控制与官方模板格式', () => {
   const files = [
     {
-      path: 'C:/Users/Administrator/.dsh/AGENTS.md',
+      path: '/home/user/.dsh/AGENTS.md',
       displayPath: '~/.dsh/AGENTS.md',
       category: 'global',
       content: '# 全局规则\n绝对不能丢弃的全局规则！'

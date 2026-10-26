@@ -1,8 +1,44 @@
+# 依赖与打包临时产物（注意：lib/ 已提交到 Git，保证克隆即用，无需现场构建）
 node_modules/
-*.log
+dist/
+build/
+*.tgz
+*.tsbuildinfo
+
+# 本地项目记忆库（本地宪法，不随版本发布）
+CLAUDE.md
+
+# 环境与敏感凭证
+.env
+.env.*
+*.local
+*.local.json
+*.local.yml
+*.local.yaml
+
+# DSH 与本地运行时隔离
+.DSH_HOME/
+.dsh/
+profiles/
+.worktrees/
+
+# 系统与编辑器缓存
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
 
-# 隔离实例验收临时产物
+# 日志与临时文件
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# 隔离实例验收临时产物与浏览器真机验收截图（不入库）
 .dsh-acceptance/
-pnpm-lock.yaml
+.verify-shots/
+test-results/
+playwright-report/
+coverage/

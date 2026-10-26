@@ -5,6 +5,14 @@
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Wenaixi/dsh-ctxlift.git"
+  },
+  "homepage": "https://github.com/Wenaixi/dsh-ctxlift#readme",
+  "bugs": {
+    "url": "https://github.com/Wenaixi/dsh-ctxlift/issues"
+  },
   "exports": {
     ".": {
       "types": "./lib/index.d.ts",
@@ -23,7 +31,10 @@
     "locale/",
     "cordis.patch.yml",
     "README.md",
-    "CLAUDE.md"
+    "README.zh-CN.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md"
   ],
   "dsh": {
     "bundle": {
@@ -46,7 +57,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node scripts/build-client.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:e2e": "node test/e2e/isolated-real-acceptance.mjs"
   },
   "keywords": [
     "dsh",
