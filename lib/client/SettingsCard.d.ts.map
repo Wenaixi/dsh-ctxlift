@@ -1,1 +1,0 @@
-{"version":3,"file":"SettingsCard.d.ts","sourceRoot":"","sources":["../../src/client/SettingsCard.tsx"],"names":[],"mappings":"AAAA;;;GAGG;AAEH,OAAO,KAA+B,MAAM,OAAO,CAAC;AACpD,OAAO,KAAK,EAAE,8BAA8B,EAAE,MAAM,iBAAiB,CAAC;AAItE,MAAM,WAAW,iBAAiB;IAChC,UAAU,EAAE,8BAA8B,CAAC;CAC5C;AAED,wBAAgB,YAAY,CAAC,EAAE,UAAU,EAAE,EAAE,iBAAiB,qBAoI7D"}

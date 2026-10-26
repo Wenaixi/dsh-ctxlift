@@ -1,7 +1,7 @@
 {
   "name": "dsh-ctxlift",
   "version": "0.1.0",
-  "description": "DSH workspace instructions granular truncation controller, global CLAUDE.md support, and web instruction editor",
+  "description": "精细控制全局与项目级 AGENTS.md / CLAUDE.md 注入截断的 DSH 插件，附 Web 端全局指令在线编辑器",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -12,32 +12,41 @@
       "default": "./lib/index.js"
     },
     "./client": {
-      "types": "./lib/client/index.d.ts",
-      "import": "./lib/client/index.js",
-      "default": "./lib/client/index.js"
+      "import": "./lib/client.js",
+      "default": "./lib/client.js"
     },
-    "./remote": {
-      "types": "./lib/typert.d.ts",
-      "import": "./lib/typert.js",
-      "default": "./lib/typert.js"
-    }
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
+  "files": [
+    "lib/",
+    "locale/",
+    "cordis.patch.yml",
+    "README.md",
+    "CLAUDE.md"
+  ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
     },
     "client": {
-      "platform": "web"
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
     },
     "manifestVersion": 1
   },
   "engines": {
     "node": ">=20.0.0",
-    "dsh": ">=0.2.0-rc.1 <0.3.0-0"
+    "dsh": ">=0.2.0-rc.1 <=0.2.1"
   },
   "scripts": {
-    "build": "tsc",
-    "test": "node --test test/**/*.test.js test/**/*.test.mjs"
+    "build": "tsc -p tsconfig.build.json && node scripts/build-client.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs"
   },
   "keywords": [
     "dsh",
@@ -50,7 +59,16 @@
   ],
   "author": "Wenxi",
   "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.0-rc.1 <=0.2.1",
+    "@deepseek-ai/schemastery": "^3.18.4",
+    "react": "^18.2.0"
+  },
   "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.4",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "typescript": "^7.0.2"

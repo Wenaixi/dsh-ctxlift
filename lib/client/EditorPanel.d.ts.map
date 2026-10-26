@@ -1,1 +1,0 @@
-{"version":3,"file":"EditorPanel.d.ts","sourceRoot":"","sources":["../../src/client/EditorPanel.tsx"],"names":[],"mappings":"AAAA;;;GAGG;AAEH,OAAO,KAA0C,MAAM,OAAO,CAAC;AAC/D,OAAO,KAAK,EAAE,8BAA8B,EAAE,MAAM,iBAAiB,CAAC;AAEtE,MAAM,WAAW,gBAAgB;IAC/B,UAAU,EAAE,8BAA8B,CAAC;CAC5C;AAED,wBAAgB,WAAW,CAAC,EAAE,UAAU,EAAE,EAAE,gBAAgB,qBA+J3D"}

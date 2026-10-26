@@ -8,9 +8,15 @@ import {
   discoverInstructionFiles
 } from '../lib/engine/files.js';
 import { InstructionsGuardService } from '../lib/remote.js';
+import { Context } from '@deepseek-ai/cordis';
 
 function createTempDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), `dsh-test-${prefix}-`));
+}
+
+/** TypertRemoteService 的构造是 (ctx, customDshHome)，单测用最小 Context 即可 */
+function createService(customDshHome) {
+  return new InstructionsGuardService(new Context(), customDshHome);
 }
 
 function cleanTempDir(dir) {
@@ -67,7 +73,7 @@ test('2. discoverInstructionFiles: 偏好为 both 时同时载入两者', () => 
 test('3. InstructionsGuardService: RPC 原子保存与文件写入', async () => {
   const tempHome = createTempDir('rpc-save');
   try {
-    const service = new InstructionsGuardService(tempHome);
+    const service = createService(tempHome);
 
     const saveRes = await service.saveGlobalContent({
       filename: 'CLAUDE.md',
@@ -90,7 +96,7 @@ test('3. InstructionsGuardService: RPC 原子保存与文件写入', async () =>
 test('4. InstructionsGuardService: 一键切换全局目标文件并无缝继承内容', async () => {
   const tempHome = createTempDir('rpc-switch');
   try {
-    const service = new InstructionsGuardService(tempHome);
+    const service = createService(tempHome);
     // 先写一个 AGENTS.md
     await service.saveGlobalContent({
       filename: 'AGENTS.md',

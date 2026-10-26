@@ -5,8 +5,8 @@ import {
   truncateUtf8Safe,
   processFileWithPolicy,
   renderGranularInstructionSet
-} from '../src/engine/render.ts';
-import { DEFAULT_CONFIG } from '../src/config.ts';
+} from '../lib/engine/render.js';
+import { DEFAULT_CONFIG } from '../lib/config.js';
 
 test('1. truncateUtf8Safe: UTF-8 安全性与多字节汉字截断', () => {
   const chineseText = '你好世界，这是一段用来测试 UTF-8 字节截断的中文文本。每个汉字占三个字节！';

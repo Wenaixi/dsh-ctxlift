@@ -5,20 +5,21 @@
  * 2. 精细截断控制（unlimited / truncate / disabled / maxBytes）
  * 3. 洋葱圈生命周期协调（官方替换 / 自主注入）
  * 4. 远程 RPC 接口落盘与数据一致性（getGlobal / saveGlobal / switchGlobal）
- * 5. 客户端前端控制器状态管理
+ * 5. Web 客户端产物（lib/client.js）的装配契约
  */
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
 
 import { resolveConfig } from '../../lib/config.js';
 import { discoverInstructionFiles, resolveGlobalInstructionFile } from '../../lib/engine/files.js';
 import { renderGranularInstructionSet, processFileWithPolicy } from '../../lib/engine/render.js';
 import { InstructionCoordinator } from '../../lib/engine/coordinator.js';
 import { InstructionsGuardService } from '../../lib/remote.js';
-import { InstructionsSettingsController } from '../../lib/client/controller.js';
+import { Context } from '@deepseek-ai/cordis';
 
 console.log('=== [E2E] Starting dsh-ctxlift isolated full functionality acceptance ===\n');
 
@@ -171,7 +172,7 @@ try {
   // 功能 5：Remote RPC 服务与在线保存、读取、无缝切换
   // -------------------------------------------------------------
   console.log('\n--- 5. Testing Remote RPC Service & Global File Online Editing ---');
-  const rpcService = new InstructionsGuardService(fakeDshHome);
+  const rpcService = new InstructionsGuardService(new Context(), fakeDshHome);
 
   // 5.1 获取全局指令元数据与内容
   const fetched = await rpcService.getGlobalInfo();
@@ -200,50 +201,53 @@ try {
   console.log('✔ [5.3] RPC switchGlobalFilename successfully switched target & inherited instructions');
 
   // -------------------------------------------------------------
-  // 功能 6：Web UI 控制器联动
+  // 功能 6：Web 客户端产物（lib/client.js）装配契约
+  // 用 node:vm 模拟窗口加载 ModuleLoader factory 产物，验证导出面
   // -------------------------------------------------------------
-  console.log('\n--- 6. Testing Web UI Controller State Management ---');
-  let configState = { ...coordConfig };
-  const fakeScope = {
-    getSnapshot: () => ({ value: configState, revision: 1 }),
-    subscribe: () => () => {},
-    mutate: async (ops) => {
-      for (const op of ops) {
-        if (op.type === 'set') {
-          if (op.path.length === 1) configState[op.path[0]] = op.value;
-          if (op.path.length === 2) configState[op.path[0]][op.path[1]] = op.value;
+  console.log('\n--- 6. Testing Web Client Bundle Contract ---');
+  let loaded = null;
+  const sandbox = {
+    window: {
+      __ModuleLoader__: {
+        load(entry) {
+          loaded = {};
+          loaded.exports = entry.factory(function (name) {
+            if (name === 'react') return ReactStub;
+            if (name === '@deepseek-ai/dsh-client-ui-primitives') return PrimitivesStub;
+            throw new Error('unexpected require: ' + name);
+          });
+          return loaded.exports;
         }
       }
-      return true;
-    }
+    },
+    console,
+    Symbol,
+    Object,
+    Map,
+    Set,
+    Promise,
+    JSON,
+    Number,
+    String,
+    confirm: () => true
   };
-  const fakeRemote = {
-    instructionsGuard: {
-      getGlobalInfo: () => rpcService.getGlobalInfo(),
-      saveGlobalContent: (p) => rpcService.saveGlobalContent(p),
-      switchGlobalFilename: (p) => rpcService.switchGlobalFilename(p)
-    }
+  const ReactStub = {
+    createElement: () => ({}),
+    useState: (v) => [v, () => {}],
+    useEffect: () => {},
+    useCallback: (f) => f
   };
+  const PrimitivesStub = { Button: function Button() {} };
+  sandbox.React = ReactStub;
+  sandbox.Primitives = PrimitivesStub;
 
-  const controller = new InstructionsSettingsController(fakeScope, fakeRemote, coordConfig);
-  assert.equal(controller.getState().config.globalPreference, 'claude');
-
-  // 修改配置策略
-  await controller.setPolicyMode('globalPolicy', 'unlimited');
-  assert.equal(controller.getState().config.globalPolicy.mode, 'unlimited');
-
-  // 触发 RPC 读取与保存
-  await controller.loadGlobalFile();
-  assert.ok(controller.getState().fileOriginalContent.length > 0);
-
-  const uiEditContent = '# Edited via Controller UI\nMaster Wenxi Rocks!';
-  controller.setDraftContent(uiEditContent);
-  assert.equal(controller.getState().isDirty, true);
-
-  const uiSaveOk = await controller.saveGlobalFile();
-  assert.equal(uiSaveOk, true);
-  assert.equal(controller.getState().isDirty, false);
-  console.log('✔ [6.1] Controller managed config state and executed RPC save seamlessly');
+  const clientSource = fs.readFileSync(path.join(process.cwd(), 'lib/client.js'), 'utf-8');
+  vm.createContext(sandbox);
+  vm.runInContext(clientSource, sandbox, { filename: 'lib/client.js' });
+  assert.ok(loaded, 'ModuleLoader.load should have been invoked');
+  assert.equal(typeof loaded.exports.apply, 'function');
+  assert.deepEqual(JSON.parse(JSON.stringify(loaded.exports.inject)), ['slots', 'locale', 'configForms', 'remote']);
+  console.log('✔ [6.1] Client bundle loads under ModuleLoader and exports apply/inject');
 
   console.log('\n=============================================================');
   console.log('🎉 ALL 6 FUNCTIONAL AREAS & 10 CRITICAL CRITERIA VERIFIED 100%!');

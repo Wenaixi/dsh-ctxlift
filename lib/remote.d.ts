@@ -1,7 +1,11 @@
 /**
- * DSH Workspace Instructions Host Remote RPC Service
- * Provides atomic read/write and file switching operations for global instruction files
+ * 全局指令文件读写服务（宿主侧 Typert Remote）
+ *
+ * 为什么继承 TypertRemoteService：网关按服务上的 typertRemote 绑定自动发现端点，
+ * 不需要任何手工 register 调用。类构造即向 Context 注册，随 fiber 卸载而消失。
  */
+import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
+import type { Context } from '@deepseek-ai/cordis';
 import { type GlobalFileResolution } from './engine/files.js';
 export interface SaveGlobalPayload {
     filename: 'AGENTS.md' | 'CLAUDE.md';
@@ -18,25 +22,26 @@ export interface SaveGlobalResult {
     lastModifiedMs: number;
 }
 /**
- * 指令守卫 Host 端核心服务
+ * 指令守卫宿主服务。
+ * 注意：signal 必须声明在业务参数之后（网关按方法签名反射，signal 非末位会直接拒绝）。
  */
-export declare class InstructionsGuardService {
-    private customDshHome?;
-    constructor(customDshHome?: string);
+export declare class InstructionsGuardService extends TypertRemoteService {
+    private readonly customDshHome?;
+    constructor(ctx: Context, customDshHome?: string);
     /**
      * 读取全局指令文件元数据与内容
      */
-    getGlobalInfo(signal?: AbortSignal): Promise<GlobalFileResolution>;
+    getGlobalInfo(): Promise<GlobalFileResolution>;
     /**
      * 原子保存全局指令文件
-     * 采用写临时文件后原子 rename 的方式，杜绝文件损坏风险
+     * 先写临时文件再 rename，杜绝写入中途失败留下半截文件
      */
-    saveGlobalContent(payload: SaveGlobalPayload, signal?: AbortSignal): Promise<SaveGlobalResult>;
+    saveGlobalContent(payload: SaveGlobalPayload): Promise<SaveGlobalResult>;
     /**
-     * 切换全局生效的文件名 (AGENTS.md <-> CLAUDE.md)
-     * 若目标文件不存在且设置了 copyExisting，自动从旧文件克隆内容
+     * 切换全局生效的文件名（AGENTS.md <-> CLAUDE.md）。
+     * 目标文件不存在时，按 copyExisting 决定是克隆旧内容还是写一个起始标题。
      */
-    switchGlobalFilename(payload: SwitchGlobalPayload, signal?: AbortSignal): Promise<{
+    switchGlobalFilename(payload: SwitchGlobalPayload): Promise<{
         ok: boolean;
         activePath: string;
     }>;
