@@ -59,8 +59,13 @@ export class InstructionsGuardService extends TypertRemoteService {
    */
   @Remote('saveGlobalContent')
   async saveGlobalContent(payload: SaveGlobalPayload): Promise<SaveGlobalResult> {
-    const filename = payload?.filename === 'CLAUDE.md' ? 'CLAUDE.md' : 'AGENTS.md';
-    const content = typeof payload?.content === 'string' ? payload.content : '';
+    // 内容必须是字符串才允许落盘。缺省就当成空字符串会静默把用户的全局指令清零，
+    // 这是不可接受的数据丢失，宁可报错也不能猜。
+    if (typeof payload?.content !== 'string') {
+      throw new Error('saveGlobalContent requires a string "content" field; refusing to write');
+    }
+    const filename = payload.filename === 'CLAUDE.md' ? 'CLAUDE.md' : 'AGENTS.md';
+    const content = payload.content;
 
     const dshHome = this.customDshHome ?? getDshHomeDir();
     if (!fs.existsSync(dshHome)) {
@@ -102,7 +107,10 @@ export class InstructionsGuardService extends TypertRemoteService {
    */
   @Remote('switchGlobalFilename')
   async switchGlobalFilename(payload: SwitchGlobalPayload): Promise<{ ok: boolean; activePath: string }> {
-    const targetFilename = payload?.target === 'CLAUDE.md' ? 'CLAUDE.md' : 'AGENTS.md';
+    if (!payload || (payload.target !== 'AGENTS.md' && payload.target !== 'CLAUDE.md')) {
+      throw new Error('switchGlobalFilename requires a "target" of "AGENTS.md" or "CLAUDE.md"');
+    }
+    const targetFilename = payload.target;
     const dshHome = this.customDshHome ?? getDshHomeDir();
     if (!fs.existsSync(dshHome)) {
       fs.mkdirSync(dshHome, { recursive: true });
