@@ -2,6 +2,13 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的格式。
 
+## [0.1.2] - 2026-10-28
+
+### 修复
+
+- 修复上游 `flatMap` 崩溃缺陷：洋葱圈协调器在自主合成与原地替换 `agent-instructions` 消息时，严格强制为 `source` 提供合法数组 `changes: []`，彻底消除官方插件在后续步（多 step）触发 baseline 替换时调用 `visibleBaseline.changes.flatMap` 抛出的 `Cannot read properties of undefined (reading 'flatMap')` 崩溃。
+- 新增专项单测：严密断言注入消息的 `source.changes` 严格为数组且支持 `.flatMap()`。
+
 ## [0.1.1] - 2026-10-28
 
 ### 新增

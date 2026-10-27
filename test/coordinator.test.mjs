@@ -56,7 +56,6 @@ test('1. InstructionCoordinator: 精准替换官方插件的消息', async () =>
     assert.equal(result.messages.length, 2);
     const replaced = result.messages[1];
     assert.equal(replaced.source.kind, 'agent-instructions');
-    // 验证内容已经被原地替换，包含了我们保全的全局规则
     assert.ok(replaced.content[0].text.includes('全局守护规则'));
     assert.ok(replaced.content[0].text.includes('不可丢失的内容！'));
   } finally {
@@ -87,7 +86,6 @@ test('2. InstructionCoordinator: 官方插件关闭时自主注入消息', async
       step: 1
     };
 
-    // 官方插件未产生任何 agent-instructions 消息
     const next = async () => ({
       messages: [{ role: 'user', content: '你好' }]
     });
@@ -98,6 +96,56 @@ test('2. InstructionCoordinator: 官方插件关闭时自主注入消息', async
     const synthetic = result.messages[1];
     assert.equal(synthetic.source.kind, 'agent-instructions');
     assert.ok(synthetic.content[0].text.includes('全局 CLAUDE 指令'));
+  } finally {
+    cleanTempDir(tempHome);
+    cleanTempDir(tempProject);
+  }
+});
+
+test('3. InstructionCoordinator: 注入消息的 source.changes 严格为数组（杜绝 flatMap 崩溃）', async () => {
+  const tempHome = createTempDir('home-flatmap');
+  const tempProject = createTempDir('proj-flatmap');
+  try {
+    fs.mkdirSync(path.join(tempProject, '.git'), { recursive: true });
+    fs.writeFileSync(path.join(tempHome, 'AGENTS.md'), '# 全局指令\n', 'utf-8');
+
+    const coordinator = new InstructionCoordinator(
+      {
+        ...DEFAULT_CONFIG,
+        globalPolicy: { mode: 'unlimited' }
+      },
+      tempHome
+    );
+
+    // 场景 A: 自主构造消息 (官方无消息)
+    const resA = await coordinator.handlePreStep(
+      { agent: { cwd: tempProject }, messages: [], step: 1 },
+      async () => ({ messages: [] })
+    );
+    const msgA = resA.messages.find(m => m?.source?.kind === 'agent-instructions');
+    assert.ok(msgA);
+    assert.ok(Array.isArray(msgA.source.changes), 'syntheticMsg 必须包含 changes 数组');
+    assert.doesNotThrow(() => {
+      msgA.source.changes.flatMap(c => [c]);
+    });
+
+    // 场景 B: 原地替换官方消息，即使官方消息缺少 changes 字段，也能防御性兜底
+    const resB = await coordinator.handlePreStep(
+      { agent: { cwd: tempProject }, messages: [], step: 1 },
+      async () => ({
+        messages: [{
+          role: 'user',
+          content: [{ type: 'text', text: '原消息' }],
+          source: { kind: 'agent-instructions', baseline: true }
+        }]
+      })
+    );
+    const msgB = resB.messages.find(m => m?.source?.kind === 'agent-instructions');
+    assert.ok(msgB);
+    assert.ok(Array.isArray(msgB.source.changes), 'updatedMsg 必须兜底补齐 changes 数组');
+    assert.doesNotThrow(() => {
+      msgB.source.changes.flatMap(c => [c]);
+    });
   } finally {
     cleanTempDir(tempHome);
     cleanTempDir(tempProject);

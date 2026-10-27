@@ -100,8 +100,9 @@ export class InstructionCoordinator {
     );
 
     if (officialMsgIndex !== -1) {
-      // 原地精准替换官方消息的 content，保留其原有元数据，同时替换为精细控制后的文本
+      // 原地精准替换官方消息的 content，保留其原有元数据，同时兜底保证 changes 严格为数组（杜绝上游 flatMap 崩溃）
       const targetMsg = decision.messages[officialMsgIndex];
+      const targetSource = targetMsg?.source ?? {};
       const updatedMsg = {
         ...targetMsg,
         content: [
@@ -109,7 +110,11 @@ export class InstructionCoordinator {
             type: 'text',
             text: rendered.fullPromptText
           }
-        ]
+        ],
+        source: {
+          ...targetSource,
+          changes: Array.isArray(targetSource.changes) ? targetSource.changes : []
+        }
       };
 
       const newMessages = [...decision.messages];
@@ -120,7 +125,7 @@ export class InstructionCoordinator {
         messages: newMessages
       };
     } else {
-      // 官方插件未启用或已被禁用：由本插件自主构造标准的指令消息并注入
+      // 官方插件未启用或已被禁用：由本插件自主构造标准的指令消息并注入，必须显式提供 changes: []
       const syntheticMsg = {
         role: 'user',
         content: [
@@ -133,7 +138,8 @@ export class InstructionCoordinator {
           kind: 'agent-instructions',
           form: 'instructions',
           baseline: true,
-          baselineIdentity: 'granular-instructions-guard'
+          baselineIdentity: 'granular-instructions-guard',
+          changes: []
         }
       };
 
