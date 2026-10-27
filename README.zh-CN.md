@@ -22,7 +22,7 @@
   - `truncate`：保留开头 N 字节（UTF-8 边界安全，不产生乱码）
   - `disabled`：整层不注入
 - 全局文件偏好：`auto` / `agents` / `claude` / `both`——打破官方硬编码 `USER_GLOBAL_FILE='AGENTS.md'` 的限制，支持全局 `CLAUDE.md`（或两者同时注入）。
-- 浏览器内在线编辑全局指令文件（`AGENTS.md` / `CLAUDE.md`），经 RPC 服务原子落盘。
+- 浏览器内在线编辑全局指令文件（`AGENTS.md` / `CLAUDE.md`），经 RPC 服务原子落盘。未创建的文件以空白草稿呈现（纯只读无副作用），保存时自动新建。
 - 每个 agent 步骤上以洋葱圈方式替换官方 `agent-instructions` 消息，策略在真实会话中生效。
 
 ## 安装

@@ -22,7 +22,7 @@ The official `agent-instructions` plugin shares one global byte budget across al
   - `truncate` — keep the first N bytes (UTF-8 safe, no broken characters)
   - `disabled` — do not inject this layer at all
 - Global file preference: `auto` / `agents` / `claude` / `both` — breaks the official hardcoded `USER_GLOBAL_FILE='AGENTS.md'` limit and supports a global `CLAUDE.md` (or both files at once).
-- In-browser editor for global instruction files (`AGENTS.md` / `CLAUDE.md`) with atomic writes through an RPC service.
+- In-browser editor for global instruction files (`AGENTS.md` / `CLAUDE.md`) with atomic writes through an RPC service. Missing files open as clean empty drafts with zero disk side effects and are created automatically on save.
 - Onion-skin replacement of the official `agent-instructions` messages on every agent step, so your policies take effect in real sessions.
 
 ## Install
