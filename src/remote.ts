@@ -22,7 +22,6 @@ export interface SaveGlobalPayload {
 
 export interface SwitchGlobalPayload {
   target: 'AGENTS.md' | 'CLAUDE.md';
-  copyExisting?: boolean;
 }
 
 export interface SaveGlobalResult {
@@ -30,6 +29,10 @@ export interface SaveGlobalResult {
   path: string;
   sizeBytes: number;
   lastModifiedMs: number;
+}
+
+export interface SwitchGlobalResult extends GlobalFileResolution {
+  ok: boolean;
 }
 
 /**
@@ -102,32 +105,18 @@ export class InstructionsGuardService extends TypertRemoteService {
   }
 
   /**
-   * 切换全局生效的文件名（AGENTS.md <-> CLAUDE.md）。
-   * 目标文件不存在时，按 copyExisting 决定是克隆旧内容还是写一个起始标题。
+   * 选择要查看/编辑的全局文件名（AGENTS.md <-> CLAUDE.md），并返回该文件的状态与内容。
+   * 只读，不落盘：目标文件不存在时 content 为空字符串，由用户在编辑器里写好内容后
+   * 调用 saveGlobalContent 自动创建（写入临时文件再 rename，不需要目标预先存在）。
    */
   @Remote('switchGlobalFilename')
-  async switchGlobalFilename(payload: SwitchGlobalPayload): Promise<{ ok: boolean; activePath: string }> {
+  async switchGlobalFilename(payload: SwitchGlobalPayload): Promise<SwitchGlobalResult> {
     if (!payload || (payload.target !== 'AGENTS.md' && payload.target !== 'CLAUDE.md')) {
       throw new Error('switchGlobalFilename requires a "target" of "AGENTS.md" or "CLAUDE.md"');
     }
-    const targetFilename = payload.target;
     const dshHome = this.customDshHome ?? getDshHomeDir();
-    if (!fs.existsSync(dshHome)) {
-      fs.mkdirSync(dshHome, { recursive: true });
-    }
-
-    const targetPath = path.join(dshHome, targetFilename);
-    const currentResolution = resolveGlobalInstructionFile('auto', dshHome);
-
-    if (!fs.existsSync(targetPath) && payload?.copyExisting && currentResolution.exists) {
-      fs.writeFileSync(targetPath, currentResolution.content, 'utf-8');
-    } else if (!fs.existsSync(targetPath)) {
-      fs.writeFileSync(targetPath, `# 全局工作守则 (${targetFilename})\n`, 'utf-8');
-    }
-
-    return {
-      ok: true,
-      activePath: targetPath
-    };
+    const preference =
+      payload.target === 'CLAUDE.md' ? 'claude' : 'agents';
+    return { ok: true, ...resolveGlobalInstructionFile(preference, dshHome) };
   }
 }

@@ -93,28 +93,41 @@ test('3. InstructionsGuardService: RPC 原子保存与文件写入', async () =>
   }
 });
 
-test('4. InstructionsGuardService: 一键切换全局目标文件并无缝继承内容', async () => {
+test('4. InstructionsGuardService: 切到不存在的文件显示空文本，保存时自动创建', async () => {
   const tempHome = createTempDir('rpc-switch');
   try {
     const service = createService(tempHome);
-    // 先写一个 AGENTS.md
+    // 先只写一个 AGENTS.md
     await service.saveGlobalContent({
       filename: 'AGENTS.md',
       content: '# 原始全局工作守则\n核心守则不变。'
     });
 
-    // 切换到 CLAUDE.md 并选择 copyExisting
-    const switchRes = await service.switchGlobalFilename({
-      target: 'CLAUDE.md',
-      copyExisting: true
-    });
-
+    // 切到不存在的 CLAUDE.md：只读选择，返回空内容，且不落盘
+    const switchRes = await service.switchGlobalFilename({ target: 'CLAUDE.md' });
     assert.equal(switchRes.ok, true);
-    assert.ok(switchRes.activePath.endsWith('CLAUDE.md'));
-    assert.ok(fs.existsSync(switchRes.activePath));
+    assert.equal(switchRes.activeFilename, 'CLAUDE.md');
+    assert.equal(switchRes.exists, false);
+    assert.equal(switchRes.content, '');
+    assert.equal(switchRes.sizeBytes, 0);
+    assert.equal(fs.existsSync(path.join(tempHome, 'CLAUDE.md')), false, '切换本身不应创建文件');
+    assert.equal(fs.existsSync(path.join(tempHome, 'AGENTS.md')), true, '不能碰已存在的文件');
 
-    const content = fs.readFileSync(switchRes.activePath, 'utf-8');
-    assert.ok(content.includes('核心守则不变。'), '成功继承原文件内容');
+    // 用户输入后保存：自动创建 CLAUDE.md
+    const saveRes = await service.saveGlobalContent({
+      filename: 'CLAUDE.md',
+      content: '# 新的全局 CLAUDE\n由编辑器创建'
+    });
+    assert.equal(saveRes.ok, true);
+    assert.equal(fs.readFileSync(path.join(tempHome, 'CLAUDE.md'), 'utf-8'), '# 新的全局 CLAUDE\n由编辑器创建');
+    // AGENTS.md 内容保持原样，不被克隆污染
+    const agentsContent = fs.readFileSync(path.join(tempHome, 'AGENTS.md'), 'utf-8');
+    assert.equal(agentsContent, '# 原始全局工作守则\n核心守则不变。');
+
+    // 保存后再次选择，读回的是刚创建的文件
+    const afterRes = await service.switchGlobalFilename({ target: 'CLAUDE.md' });
+    assert.equal(afterRes.exists, true);
+    assert.ok(afterRes.content.includes('由编辑器创建'));
   } finally {
     cleanTempDir(tempHome);
   }

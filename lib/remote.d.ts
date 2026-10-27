@@ -13,13 +13,15 @@ export interface SaveGlobalPayload {
 }
 export interface SwitchGlobalPayload {
     target: 'AGENTS.md' | 'CLAUDE.md';
-    copyExisting?: boolean;
 }
 export interface SaveGlobalResult {
     ok: boolean;
     path: string;
     sizeBytes: number;
     lastModifiedMs: number;
+}
+export interface SwitchGlobalResult extends GlobalFileResolution {
+    ok: boolean;
 }
 /**
  * 指令守卫宿主服务。
@@ -38,12 +40,10 @@ export declare class InstructionsGuardService extends TypertRemoteService {
      */
     saveGlobalContent(payload: SaveGlobalPayload): Promise<SaveGlobalResult>;
     /**
-     * 切换全局生效的文件名（AGENTS.md <-> CLAUDE.md）。
-     * 目标文件不存在时，按 copyExisting 决定是克隆旧内容还是写一个起始标题。
+     * 选择要查看/编辑的全局文件名（AGENTS.md <-> CLAUDE.md），并返回该文件的状态与内容。
+     * 只读，不落盘：目标文件不存在时 content 为空字符串，由用户在编辑器里写好内容后
+     * 调用 saveGlobalContent 自动创建（写入临时文件再 rename，不需要目标预先存在）。
      */
-    switchGlobalFilename(payload: SwitchGlobalPayload): Promise<{
-        ok: boolean;
-        activePath: string;
-    }>;
+    switchGlobalFilename(payload: SwitchGlobalPayload): Promise<SwitchGlobalResult>;
 }
 //# sourceMappingURL=remote.d.ts.map

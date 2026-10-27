@@ -191,14 +191,13 @@ try {
   assert.equal(diskCheck, newContent);
   console.log('✔ [5.2] RPC saveGlobalContent atomic write & disk persistence verified');
 
-  // 5.3 切换全局生效文件名并无缝克隆现有指令
-  const switchRes = await rpcService.switchGlobalFilename({
-    target: 'AGENTS.md',
-    copyExisting: true
-  });
+  // 5.3 选择全局目标文件名（只读），并在文件缺失时保持空内容
+  const switchRes = await rpcService.switchGlobalFilename({ target: 'AGENTS.md' });
   assert.equal(switchRes.ok, true);
-  assert.equal(fs.existsSync(globalAgentsPath), true);
-  console.log('✔ [5.3] RPC switchGlobalFilename successfully switched target & inherited instructions');
+  assert.equal(switchRes.activeFilename, 'AGENTS.md');
+  const claudeDiskAfter = fs.readFileSync(globalClaudePath, 'utf-8');
+  assert.equal(claudeDiskAfter, newContent, '选择文件是只读操作，不能改动任何已存在的文件');
+  console.log('✔ [5.3] RPC switchGlobalFilename is read-only & keeps existing files intact');
 
   // -------------------------------------------------------------
   // 功能 6：Web 客户端产物（lib/client.js）装配契约
