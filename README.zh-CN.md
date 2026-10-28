@@ -24,6 +24,7 @@
 - 全局文件偏好：`auto` / `agents` / `claude` / `both`——打破官方硬编码 `USER_GLOBAL_FILE='AGENTS.md'` 的限制，支持全局 `CLAUDE.md`（或两者同时注入）。
 - 浏览器内在线编辑全局指令文件（`AGENTS.md` / `CLAUDE.md`），经 RPC 服务原子落盘。未创建的文件以空白草稿呈现（纯只读无副作用），保存时自动新建。
 - 每个 agent 步骤上以洋葱圈方式替换官方 `agent-instructions` 消息，策略在真实会话中生效。
+- 主目录边界隔离（Home Directory Boundary Isolation）：向上寻根探测到 `os.homedir()` 立即截断且绝不将主目录本身判定为项目根，彻底防止从主目录启动会话时误载 `~/CLAUDE.md`。
 
 ## 安装
 
@@ -89,7 +90,7 @@ locale/                zh.json / en.json
 pnpm install          # 安装 dev + peer 依赖
 pnpm typecheck        # tsc --noEmit
 pnpm build            # tsc 输出 lib/，scripts/build-client.mjs 生成 lib/client.js
-pnpm test             # node --test test/*.test.mjs（13 项单测）
+pnpm test             # node --test test/*.test.mjs（16 项单测）
 node test/e2e/isolated-real-acceptance.mjs   # 隔离环境全功能验收
 ```
 

@@ -24,6 +24,7 @@ The official `agent-instructions` plugin shares one global byte budget across al
 - Global file preference: `auto` / `agents` / `claude` / `both` — breaks the official hardcoded `USER_GLOBAL_FILE='AGENTS.md'` limit and supports a global `CLAUDE.md` (or both files at once).
 - In-browser editor for global instruction files (`AGENTS.md` / `CLAUDE.md`) with atomic writes through an RPC service. Missing files open as clean empty drafts with zero disk side effects and are created automatically on save.
 - Onion-skin replacement of the official `agent-instructions` messages on every agent step, so your policies take effect in real sessions.
+- Home directory boundary isolation: project root traversal stops at `os.homedir()` and never treats the home directory as a project root, preventing unintended loading of `~/CLAUDE.md` when starting sessions from the user home.
 
 ## Install
 
@@ -89,7 +90,7 @@ Key contracts (verified against DSH source):
 pnpm install          # installs dev + peer dependencies
 pnpm typecheck        # tsc --noEmit
 pnpm build            # tsc into lib/, scripts/build-client.mjs generates lib/client.js
-pnpm test             # node --test test/*.test.mjs (13 unit tests)
+pnpm test             # node --test test/*.test.mjs (16 unit tests)
 node test/e2e/isolated-real-acceptance.mjs   # isolated full-function acceptance
 ```
 

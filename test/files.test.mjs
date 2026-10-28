@@ -6,7 +6,8 @@ import os from 'node:os';
 
 import {
   resolveGlobalInstructionFile,
-  discoverInstructionFiles
+  discoverInstructionFiles,
+  findProjectRoot
 } from '../lib/engine/files.js';
 
 test('Global file discovery supports AGENTS.md, CLAUDE.md and auto mode', (t) => {
@@ -81,4 +82,32 @@ test('Project file discovery distinguishes root and nested instructions', (t) =>
   const subFile = files.find(f => f.category === 'subdirectory');
   assert.ok(subFile);
   assert.equal(subFile.content, 'Sub Agents');
+});
+
+test('findProjectRoot halts at home directory boundary and excludes home itself', () => {
+  const home = path.resolve(os.homedir());
+  
+  // 1. 家目录本身绝不能被当做项目根，应回退至上一级
+  const rootFromHome = findProjectRoot(home);
+  assert.equal(rootFromHome, path.dirname(home));
+
+  // 2. 家目录的普通子目录（无标记）回退到该子目录自身，不向上穿透到家目录
+  const docDir = path.join(home, 'Documents');
+  if (fs.existsSync(docDir)) {
+    const rootFromDocs = findProjectRoot(docDir);
+    assert.equal(rootFromDocs, docDir);
+  }
+});
+
+test('discoverInstructionFiles never loads ~/CLAUDE.md when cwd is home directory', (t) => {
+  const home = path.resolve(os.homedir());
+  const emptyGlobalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-test-empty-global-'));
+  t.after(() => {
+    fs.rmSync(emptyGlobalDir, { recursive: true, force: true });
+  });
+
+  // 当会话 cwd 是家目录时，即使家目录存在 CLAUDE.md，也绝对不能加载 project-claude 或 subdirectory
+  const filesAtHome = discoverInstructionFiles(home, 'auto', emptyGlobalDir);
+  const homeClaude = filesAtHome.find(f => f.file.toLowerCase().includes('claude.md'));
+  assert.equal(homeClaude, undefined, '~/CLAUDE.md must NEVER be loaded when cwd is home');
 });

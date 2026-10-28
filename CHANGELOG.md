@@ -2,6 +2,14 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的格式。
 
+## [0.1.3] - 2026-10-29
+
+### 修复与安全性增强
+
+- 主目录边界隔离（Home Directory Boundary Isolation）：向上递归寻根算法 `findProjectRoot` 在到达 `os.homedir()` 时强制中止向上穿透；当 fallback 命中主目录自身时返回其父目录，彻底禁止将用户主目录本身判定为工程项目根目录。
+- 严禁误载主目录 `~/CLAUDE.md`：当会话工作目录（cwd）直接为用户主目录时，`discoverInstructionFiles` 强制排除 `~/CLAUDE.md` 与主目录根级项目指令，仅加载用户全局指令（`$DSH_HOME/AGENTS.md`），消除主目录下庞大历史环境文件对普通会话的无意污染。
+- 新增专项测试与全量回归：在 `test/files.test.mjs` 中新增主目录寻根截断与主目录排除 `~/CLAUDE.md` 的专项断言，全套 16 项测试与 E2E 验收 100% 绿色通过。
+
 ## [0.1.2] - 2026-10-28
 
 ### 修复
