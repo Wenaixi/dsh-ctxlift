@@ -13,6 +13,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_CONFIG } from '../lib/config.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf-8'));
@@ -25,14 +26,8 @@ const en = JSON.parse(await readFile(join(root, 'locale/en.json'), 'utf-8'));
 /** 用户在界面上改动的四层策略，键名与 Config Schema 完全一致 */
 const LAYERS = ['globalPolicy', 'projectClaudePolicy', 'projectAgentsPolicy', 'subdirectoriesPolicy'];
 
-/** 界面回退显示用的默认值，必须与 src/config.ts 的 DEFAULT_CONFIG 保持一致 */
-const DEFAULTS = {
-  globalPreference: 'auto',
-  globalPolicy: { mode: 'unlimited', maxBytes: 131072 },
-  projectClaudePolicy: { mode: 'truncate', maxBytes: 65536 },
-  projectAgentsPolicy: { mode: 'truncate', maxBytes: 65536 },
-  subdirectoriesPolicy: { mode: 'truncate', maxBytes: 32768 }
-};
+/** 界面回退显示用的默认值，直接复用 DEFAULT_CONFIG 单一事实来源 */
+const DEFAULTS = DEFAULT_CONFIG;
 
 const content = `window.__ModuleLoader__.load({
   id: ${JSON.stringify(PKG)},

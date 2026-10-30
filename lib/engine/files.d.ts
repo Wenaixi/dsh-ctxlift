@@ -17,10 +17,6 @@ export interface GlobalFileResolution {
  */
 export declare function getDshHomeDir(): string;
 /**
- * 获取 Agents 全局目录 (~/.agents 或 $AGENTS_HOME)
- */
-export declare function getAgentsHomeDir(): string;
-/**
  * 解析全局指令文件状态与内容
  */
 export declare function resolveGlobalInstructionFile(preference?: GlobalFilePreference, customDshHome?: string): GlobalFileResolution;

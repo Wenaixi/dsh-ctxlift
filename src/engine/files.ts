@@ -30,17 +30,6 @@ export function getDshHomeDir(): string {
 }
 
 /**
- * 获取 Agents 全局目录 (~/.agents 或 $AGENTS_HOME)
- */
-export function getAgentsHomeDir(): string {
-  const envAgentsHome = process.env.AGENTS_HOME;
-  if (envAgentsHome && envAgentsHome.trim().length > 0) {
-    return path.resolve(envAgentsHome);
-  }
-  return path.join(os.homedir(), '.agents');
-}
-
-/**
  * 解析全局指令文件状态与内容
  */
 export function resolveGlobalInstructionFile(
