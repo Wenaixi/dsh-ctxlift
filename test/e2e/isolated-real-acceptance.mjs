@@ -246,7 +246,11 @@ try {
   assert.ok(loaded, 'ModuleLoader.load should have been invoked');
   assert.equal(typeof loaded.exports.apply, 'function');
   assert.deepEqual(JSON.parse(JSON.stringify(loaded.exports.inject)), ['slots', 'locale', 'configForms', 'remote']);
+  assert.ok(clientSource.includes('saveConfig'), 'Client bundle should include saveConfig action');
+  assert.ok(clientSource.includes('configDirty'), 'Client bundle should include config dirty checking');
+  assert.ok(clientSource.includes('config.save'), 'Client bundle should bind config.save i18n key');
   console.log('✔ [6.1] Client bundle loads under ModuleLoader and exports apply/inject');
+  console.log('✔ [6.2] Client bundle includes explicit config save button and dirty draft logic');
 
   console.log('\n=============================================================');
   console.log('🎉 ALL 6 FUNCTIONAL AREAS & 10 CRITICAL CRITERIA VERIFIED 100%!');

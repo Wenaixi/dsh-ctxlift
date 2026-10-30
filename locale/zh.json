@@ -31,5 +31,9 @@
   "state.loading": "加载中...",
   "state.readOnly": "当前环境只读，无法修改配置",
   "toast.saved": "配置已保存",
-  "toast.rejected": "保存被拒绝，配置已被服务端更新"
+  "toast.rejected": "保存被拒绝，配置已被服务端更新",
+  "config.sectionTitle": "指令截断与全局策略",
+  "config.dirty": "配置有未保存修改",
+  "config.save": "保存配置",
+  "config.reset": "放弃修改"
 }

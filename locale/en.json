@@ -31,5 +31,9 @@
   "state.loading": "Loading...",
   "state.readOnly": "Read-only environment, cannot modify configuration",
   "toast.saved": "Configuration saved",
-  "toast.rejected": "Save rejected, configuration was updated on the server"
+  "toast.rejected": "Save rejected, configuration was updated on the server",
+  "config.sectionTitle": "Instruction & Policy Settings",
+  "config.dirty": "Unsaved config changes",
+  "config.save": "Save Configuration",
+  "config.reset": "Discard Changes"
 }

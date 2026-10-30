@@ -301,26 +301,89 @@ const content = `window.__ModuleLoader__.load({
 
       var dirty = draft !== base;
 
-      var applyOps = React.useCallback(function (ops, message) {
+      function normalizeConfig(c) {
+        var raw = c || {};
+        var res = {
+          globalPreference: typeof raw.globalPreference === "string" ? raw.globalPreference : DEFAULTS.globalPreference
+        };
+        for (var i = 0; i < LAYERS.length; i++) {
+          res[LAYERS[i]] = policyOf(raw, LAYERS[i]);
+        }
+        return res;
+      }
+
+      var serverConfig = React.useMemo(function () {
+        return normalizeConfig(config);
+      }, [config]);
+
+      var configDraftPair = React.useState(null);
+      var configDraft = configDraftPair[0];
+      var setConfigDraft = configDraftPair[1];
+
+      var currentConfig = configDraft || serverConfig;
+
+      var configDirty = React.useMemo(function () {
+        if (!configDraft) return false;
+        if (configDraft.globalPreference !== serverConfig.globalPreference) return true;
+        for (var i = 0; i < LAYERS.length; i++) {
+          var l = LAYERS[i];
+          if (configDraft[l].mode !== serverConfig[l].mode) return true;
+          if (configDraft[l].maxBytes !== serverConfig[l].maxBytes) return true;
+        }
+        return false;
+      }, [configDraft, serverConfig]);
+
+      var setPreferenceDraft = function (pref) {
+        setConfigDraft(function (prev) {
+          var baseConfig = prev || serverConfig;
+          return Object.assign({}, baseConfig, { globalPreference: pref });
+        });
+      };
+
+      var writePolicyDraft = function (layer, next) {
+        setConfigDraft(function (prev) {
+          var baseConfig = prev || serverConfig;
+          var updated = Object.assign({}, baseConfig);
+          updated[layer] = { mode: next.mode, maxBytes: next.maxBytes };
+          return updated;
+        });
+      };
+
+      var saveConfig = function () {
+        if (!configDirty || busy || !writable) return;
+        var ops = [];
+        if (currentConfig.globalPreference !== serverConfig.globalPreference) {
+          ops.push({ op: "set", path: ["globalPreference"], value: currentConfig.globalPreference });
+        }
+        for (var i = 0; i < LAYERS.length; i++) {
+          var l = LAYERS[i];
+          if (currentConfig[l].mode !== serverConfig[l].mode || currentConfig[l].maxBytes !== serverConfig[l].maxBytes) {
+            ops.push({ op: "set", path: [l], value: currentConfig[l] });
+          }
+        }
+        if (ops.length === 0) {
+          setConfigDraft(null);
+          return;
+        }
         setBusy(true);
         setNote(null);
         props.mutate(ops, snapshot.revision).then(function (landed) {
           setBusy(false);
-          setNote(landed ? message : t("toast.rejected"));
+          if (landed) {
+            setConfigDraft(null);
+            setNote(t("toast.saved"));
+          } else {
+            setNote(t("toast.rejected"));
+          }
         });
-      }, [props.mutate, snapshot.revision]);
-
-      var setPreference = function (pref) {
-        applyOps([{ op: "set", path: ["globalPreference"], value: pref }], t("toast.saved"));
       };
 
-      // volatile 对象字段整块写：一次 op 覆盖整层策略，避免嵌套路径的合并语义歧义
-      var writePolicy = function (layer, next) {
-        applyOps([{ op: "set", path: [layer], value: next }], t("toast.saved"));
+      var resetConfig = function () {
+        setConfigDraft(null);
       };
 
       var renderPolicyRow = function (layer) {
-        var policy = policyOf(config, layer);
+        var policy = currentConfig[layer];
         var rowKey = "policy." + layer;
         return e(
           "div",
@@ -341,7 +404,7 @@ const content = `window.__ModuleLoader__.load({
                 disabled: busy || !writable,
                 style: L.select,
                 onChange: function (event) {
-                  writePolicy(layer, { mode: event.target.value, maxBytes: policy.maxBytes });
+                  writePolicyDraft(layer, { mode: event.target.value, maxBytes: policy.maxBytes });
                 }
               },
               e("option", { value: "unlimited" }, t("policy.mode.unlimited")),
@@ -362,7 +425,7 @@ const content = `window.__ModuleLoader__.load({
                     onChange: function (event) {
                       var next = Number(event.target.value);
                       if (!Number.isFinite(next) || next < 128) return;
-                      writePolicy(layer, { mode: policy.mode, maxBytes: Math.floor(next) });
+                      writePolicyDraft(layer, { mode: policy.mode, maxBytes: Math.floor(next) });
                     }
                   }),
                   e("span", { style: L.hint }, t("policy.bytes"))
@@ -404,6 +467,31 @@ const content = `window.__ModuleLoader__.load({
 
         e(
           "div",
+          { style: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px", marginTop: "4px" } },
+          e("span", { style: L.title }, t("config.sectionTitle")),
+          e(
+            "div",
+            { style: { display: "flex", alignItems: "center", gap: "8px" } },
+            configDirty ? e("span", { style: L.warn }, t("config.dirty")) : null,
+            configDirty
+              ? e("button", {
+                  type: "button",
+                  disabled: busy || !writable,
+                  style: L.select,
+                  onClick: resetConfig
+                }, t("config.reset"))
+              : null,
+            e(P.Button, {
+              variant: "primary",
+              size: "sm",
+              disabled: busy || !configDirty || !writable,
+              onClick: saveConfig
+            }, t("config.save"))
+          )
+        ),
+
+        e(
+          "div",
           { style: L.row },
           e(
             "div",
@@ -414,10 +502,10 @@ const content = `window.__ModuleLoader__.load({
           e(
             "select",
             {
-              value: typeof config.globalPreference === "string" ? config.globalPreference : DEFAULTS.globalPreference,
+              value: currentConfig.globalPreference,
               disabled: busy || !writable,
               style: L.select,
-              onChange: function (event) { setPreference(event.target.value); }
+              onChange: function (event) { setPreferenceDraft(event.target.value); }
             },
             e("option", { value: "auto" }, t("pref.auto")),
             e("option", { value: "claude" }, t("pref.claude")),
