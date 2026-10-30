@@ -33,6 +33,10 @@ export declare class InstructionCoordinator {
     constructor(config: GranularInstructionsConfig, customDshHome?: string);
     updateConfig(newConfig: GranularInstructionsConfig): void;
     /**
+     * 显式使渲染缓存失效，保留当前正在生效的运行时配置
+     */
+    invalidateCache(): void;
+    /**
      * 刷新并获取精细化渲染的提示词
      */
     getRenderedInstructions(workspaceDir: string): RenderResult;

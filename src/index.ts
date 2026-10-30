@@ -48,7 +48,7 @@ export function apply(ctx: any, rawConfig?: ConfigShape) {
   ctx.on('tools/result', (event: any) => {
     const toolName = event?.tool?.name ?? event?.name;
     if (toolName === 'write' || toolName === 'edit' || toolName === 'ops_replace') {
-      coordinator.updateConfig(config);
+      coordinator.invalidateCache();
     }
   });
 }

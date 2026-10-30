@@ -151,3 +151,43 @@ test('3. InstructionCoordinator: 注入消息的 source.changes 严格为数组�
     cleanTempDir(tempProject);
   }
 });
+
+test('4. InstructionCoordinator: invalidateCache 显式失效缓存并保留活动配置', async () => {
+  const tempHome = createTempDir('home-inval');
+  const tempProject = createTempDir('proj-inval');
+  try {
+    fs.mkdirSync(path.join(tempProject, '.git'), { recursive: true });
+    const globalPath = path.join(tempHome, 'AGENTS.md');
+    fs.writeFileSync(globalPath, '# 全局原始版本\n', 'utf-8');
+
+    const coordinator = new InstructionCoordinator(
+      {
+        ...DEFAULT_CONFIG,
+        globalPolicy: { mode: 'unlimited', maxBytes: 1024 }
+      },
+      tempHome
+    );
+
+    const firstRender = coordinator.getRenderedInstructions(tempProject);
+    assert.ok(firstRender.fullPromptText.includes('全局原始版本'));
+
+    // 动态更新配置（例如改为 disabled）
+    coordinator.updateConfig({
+      ...DEFAULT_CONFIG,
+      globalPolicy: { mode: 'disabled' }
+    });
+    const secondRender = coordinator.getRenderedInstructions(tempProject);
+    assert.equal(secondRender.fullPromptText, '', 'disabled 模式下应为空');
+
+    // 此时外部修改了文件并触发 invalidateCache
+    fs.writeFileSync(globalPath, '# 全局修改后版本\n', 'utf-8');
+    coordinator.invalidateCache();
+
+    // 再次渲染：验证仍然保持 disabled 配置，未被错误回滚
+    const thirdRender = coordinator.getRenderedInstructions(tempProject);
+    assert.equal(thirdRender.fullPromptText, '', 'invalidateCache 必须保留当前动态配置');
+  } finally {
+    cleanTempDir(tempHome);
+    cleanTempDir(tempProject);
+  }
+});
