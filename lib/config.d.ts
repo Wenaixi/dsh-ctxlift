@@ -120,12 +120,8 @@ export declare const Config: Schema<Schemastery.ObjectS<NoInfer<{
  * 所以读取一律走 readVolatile，这里的类型只是"用户写下的形状"。
  */
 export type Config = GranularInstructionsConfig;
-/**
- * 校验并合并默认配置，保证每个字段类型健全
- */
-export declare function resolveConfig(rawConfig?: Partial<GranularInstructionsConfig>): GranularInstructionsConfig;
 /** volatile 字段在宿主里是带 get() 的访问器，单测里也可能直接传裸值 */
-interface VolatileRef<T> {
+export interface VolatileRef<T> {
     get(): T;
 }
 /**
@@ -134,9 +130,12 @@ interface VolatileRef<T> {
  */
 export declare function readVolatile<T>(value: VolatileRef<T> | T | undefined): T | undefined;
 /**
- * 把宿主交给 apply 的原始配置解开成普通对象，再交给 resolveConfig 归一。
- * 这是引擎唯一入口，保证四处 policy 都拿到确定的值。
+ * 校验并合并默认配置，保证每个字段类型健全。
+ * 深模块设计：原生吸收 volatile 访问器或普通对象，调用方无需在外部手动解包。
  */
-export declare function resolvePluginConfig(rawConfig?: Partial<GranularInstructionsConfig>): GranularInstructionsConfig;
-export {};
+export declare function resolveConfig(rawConfig?: unknown): GranularInstructionsConfig;
+/**
+ * 兼容旧入口：统一委托给具备深层解包能力的 resolveConfig
+ */
+export declare const resolvePluginConfig: typeof resolveConfig;
 //# sourceMappingURL=config.d.ts.map

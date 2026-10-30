@@ -108,46 +108,8 @@ export const Config = Schema.object({
  */
 export type Config = GranularInstructionsConfig;
 
-/**
- * 校验并合并默认配置，保证每个字段类型健全
- */
-export function resolveConfig(rawConfig?: Partial<GranularInstructionsConfig>): GranularInstructionsConfig {
-  if (!rawConfig || typeof rawConfig !== 'object') {
-    return structuredClone(DEFAULT_CONFIG);
-  }
-
-  const resolvePolicy = (
-    policy: Partial<FilePolicyConfig> | undefined,
-    fallback: FilePolicyConfig
-  ): FilePolicyConfig => {
-    if (!policy || typeof policy !== 'object') {
-      return { ...fallback };
-    }
-
-    const mode = VALID_MODES.includes(policy.mode as TruncateMode) ? policy.mode! : fallback.mode;
-    const maxBytes =
-      typeof policy.maxBytes === 'number' && policy.maxBytes > 0
-        ? Math.floor(policy.maxBytes)
-        : fallback.maxBytes;
-
-    return { mode, maxBytes };
-  };
-
-  const globalPreference = VALID_PREFERENCES.includes(rawConfig.globalPreference as GlobalFilePreference)
-    ? rawConfig.globalPreference!
-    : DEFAULT_CONFIG.globalPreference;
-
-  return {
-    globalPreference,
-    globalPolicy: resolvePolicy(rawConfig.globalPolicy, DEFAULT_CONFIG.globalPolicy),
-    projectClaudePolicy: resolvePolicy(rawConfig.projectClaudePolicy, DEFAULT_CONFIG.projectClaudePolicy),
-    projectAgentsPolicy: resolvePolicy(rawConfig.projectAgentsPolicy, DEFAULT_CONFIG.projectAgentsPolicy),
-    subdirectoriesPolicy: resolvePolicy(rawConfig.subdirectoriesPolicy, DEFAULT_CONFIG.subdirectoriesPolicy)
-  };
-}
-
 /** volatile 字段在宿主里是带 get() 的访问器，单测里也可能直接传裸值 */
-interface VolatileRef<T> {
+export interface VolatileRef<T> {
   get(): T;
 }
 
@@ -163,21 +125,52 @@ export function readVolatile<T>(value: VolatileRef<T> | T | undefined): T | unde
 }
 
 /**
- * 把宿主交给 apply 的原始配置解开成普通对象，再交给 resolveConfig 归一。
- * 这是引擎唯一入口，保证四处 policy 都拿到确定的值。
+ * 校验并合并默认配置，保证每个字段类型健全。
+ * 深模块设计：原生吸收 volatile 访问器或普通对象，调用方无需在外部手动解包。
  */
-export function resolvePluginConfig(
-  rawConfig?: Partial<GranularInstructionsConfig>
-): GranularInstructionsConfig {
+export function resolveConfig(rawConfig?: unknown): GranularInstructionsConfig {
   if (!rawConfig || typeof rawConfig !== 'object') {
-    return resolveConfig();
+    return structuredClone(DEFAULT_CONFIG);
   }
 
-  return resolveConfig({
-    globalPreference: readVolatile(rawConfig.globalPreference as any),
-    globalPolicy: readVolatile(rawConfig.globalPolicy as any),
-    projectClaudePolicy: readVolatile(rawConfig.projectClaudePolicy as any),
-    projectAgentsPolicy: readVolatile(rawConfig.projectAgentsPolicy as any),
-    subdirectoriesPolicy: readVolatile(rawConfig.subdirectoriesPolicy as any)
-  });
+  const raw = rawConfig as Record<string, unknown>;
+
+  const resolvePolicy = (
+    rawPolicyInput: unknown,
+    fallback: FilePolicyConfig
+  ): FilePolicyConfig => {
+    const policy = readVolatile(rawPolicyInput as any) as Partial<FilePolicyConfig> | undefined;
+    if (!policy || typeof policy !== 'object') {
+      return { ...fallback };
+    }
+
+    const rawMode = readVolatile(policy.mode as any);
+    const mode = VALID_MODES.includes(rawMode as TruncateMode) ? (rawMode as TruncateMode) : fallback.mode;
+
+    const rawMaxBytes = readVolatile(policy.maxBytes as any);
+    const maxBytes =
+      typeof rawMaxBytes === 'number' && rawMaxBytes > 0
+        ? Math.floor(rawMaxBytes)
+        : fallback.maxBytes;
+
+    return { mode, maxBytes };
+  };
+
+  const rawPref = readVolatile(raw.globalPreference as any);
+  const globalPreference = VALID_PREFERENCES.includes(rawPref as GlobalFilePreference)
+    ? (rawPref as GlobalFilePreference)
+    : DEFAULT_CONFIG.globalPreference;
+
+  return {
+    globalPreference,
+    globalPolicy: resolvePolicy(raw.globalPolicy, DEFAULT_CONFIG.globalPolicy),
+    projectClaudePolicy: resolvePolicy(raw.projectClaudePolicy, DEFAULT_CONFIG.projectClaudePolicy),
+    projectAgentsPolicy: resolvePolicy(raw.projectAgentsPolicy, DEFAULT_CONFIG.projectAgentsPolicy),
+    subdirectoriesPolicy: resolvePolicy(raw.subdirectoriesPolicy, DEFAULT_CONFIG.subdirectoriesPolicy)
+  };
 }
+
+/**
+ * 兼容旧入口：统一委托给具备深层解包能力的 resolveConfig
+ */
+export const resolvePluginConfig = resolveConfig;
