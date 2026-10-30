@@ -24,6 +24,17 @@ export declare function getAgentsHomeDir(): string;
  * 解析全局指令文件状态与内容
  */
 export declare function resolveGlobalInstructionFile(preference?: GlobalFilePreference, customDshHome?: string): GlobalFileResolution;
+export interface SaveGlobalFileResult {
+    ok: boolean;
+    path: string;
+    sizeBytes: number;
+    lastModifiedMs: number;
+}
+/**
+ * 原子落盘保存全局指令文件
+ * 先写带随机后缀的隐藏临时文件，再原子 renameSync 替换目标文件
+ */
+export declare function saveGlobalInstructionFile(filename: 'AGENTS.md' | 'CLAUDE.md', content: string, customDshHome?: string): SaveGlobalFileResult;
 /**
  * 寻找工作区或项目根目录（通过向上探测 .git、package.json 等特征文件）
  */

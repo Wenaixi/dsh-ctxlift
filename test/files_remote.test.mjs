@@ -5,7 +5,8 @@ import path from 'node:path';
 import os from 'node:os';
 import {
   resolveGlobalInstructionFile,
-  discoverInstructionFiles
+  discoverInstructionFiles,
+  saveGlobalInstructionFile
 } from '../lib/engine/files.js';
 import { InstructionsGuardService } from '../lib/remote.js';
 import { Context } from '@deepseek-ai/cordis';
@@ -128,6 +129,23 @@ test('4. InstructionsGuardService: 切到不存在的文件显示空文本，保
     const afterRes = await service.switchGlobalFilename({ target: 'CLAUDE.md' });
     assert.equal(afterRes.exists, true);
     assert.ok(afterRes.content.includes('由编辑器创建'));
+  } finally {
+    cleanTempDir(tempHome);
+  }
+});
+
+test('5. saveGlobalInstructionFile: 领域层原子写入独立可测（无需 Cordis Context）', () => {
+  const tempHome = createTempDir('domain-save');
+  try {
+    const res = saveGlobalInstructionFile(
+      'AGENTS.md',
+      '# 纯粹领域保存测试\n不依赖任何容器！',
+      tempHome
+    );
+    assert.equal(res.ok, true);
+    assert.ok(fs.existsSync(res.path));
+    const content = fs.readFileSync(res.path, 'utf-8');
+    assert.ok(content.includes('不依赖任何容器！'));
   } finally {
     cleanTempDir(tempHome);
   }

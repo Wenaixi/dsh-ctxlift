@@ -6,7 +6,7 @@
  */
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import type { Context } from '@deepseek-ai/cordis';
-import { type GlobalFileResolution } from './engine/files.js';
+import { type GlobalFileResolution, type SaveGlobalFileResult } from './engine/files.js';
 export interface SaveGlobalPayload {
     filename: 'AGENTS.md' | 'CLAUDE.md';
     content: string;
@@ -14,12 +14,7 @@ export interface SaveGlobalPayload {
 export interface SwitchGlobalPayload {
     target: 'AGENTS.md' | 'CLAUDE.md';
 }
-export interface SaveGlobalResult {
-    ok: boolean;
-    path: string;
-    sizeBytes: number;
-    lastModifiedMs: number;
-}
+export type SaveGlobalResult = SaveGlobalFileResult;
 export interface SwitchGlobalResult extends GlobalFileResolution {
     ok: boolean;
 }
