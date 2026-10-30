@@ -2,6 +2,7 @@
  * DSH Workspace Instructions Onion-Skin Step Interceptor Coordinator
  */
 
+import crypto from 'node:crypto';
 import { discoverInstructionFiles } from './files.js';
 import { renderGranularInstructionSet, type RenderResult } from './render.js';
 import type { GranularInstructionsConfig } from '../config.js';
@@ -62,13 +63,19 @@ export class InstructionCoordinator {
       this.customDshHome
     );
 
-    // 构建轻量指纹，避免重复渲染
-    const signature = files.map((f) => `${f.path}:${f.content.length}`).join('|') +
-      `|pref:${this.config.globalPreference}` +
+    // 构建精准指纹，包含目录、文件路径、文件内容摘要以及四层策略参数
+    const fileSignatures = files.map((f) => {
+      const digest = crypto.createHash('sha1').update(f.content).digest('hex').slice(0, 8);
+      return `${f.path}:${f.content.length}:${digest}`;
+    }).join('|');
+
+    const configSignature = `pref:${this.config.globalPreference}` +
       `|global:${this.config.globalPolicy.mode}:${this.config.globalPolicy.maxBytes}` +
       `|claude:${this.config.projectClaudePolicy.mode}:${this.config.projectClaudePolicy.maxBytes}` +
       `|agents:${this.config.projectAgentsPolicy.mode}:${this.config.projectAgentsPolicy.maxBytes}` +
       `|sub:${this.config.subdirectoriesPolicy.mode}:${this.config.subdirectoriesPolicy.maxBytes}`;
+
+    const signature = `${workspaceDir}|${fileSignatures}|${configSignature}`;
 
     if (this.cachedRenderResult && this.cachedRenderResult.signature === signature) {
       return this.cachedRenderResult.result;
