@@ -65,14 +65,17 @@ src/
 ├── index.ts           Host 入口：导出 { name, inject, Config, apply }；
 │                      组装 coordinator 并通过 ctx.plugin 挂载 RPC 服务
 ├── config.ts          Config Schema（schemastery，全字段 volatile、无默认值）；
-│                      DEFAULT_CONFIG + resolveConfig（引擎归一）
-├── remote.ts          InstructionsGuardService extends TypertRemoteService，
+│                      DEFAULT_CONFIG + resolveConfig（原生解包 volatile 访问器）
+├── remote.ts          InstructionsGuardService 纯 RPC 薄适配器；
 │                      @Remote('getGlobalInfo'|'saveGlobalContent'|'switchGlobalFilename')
-└── engine/            render.ts（UTF-8 安全截断）、files.ts（文件发现）、
-                       coordinator.ts（agent/pre-step 洋葱圈替换）
+└── engine/
+    ├── render.ts      UTF-8 安全截断与分层指令渲染
+    ├── files.ts       文件发现、主目录边界隔离，以及原子落盘
+    │                  （saveGlobalInstructionFile 让 fs 远离 RPC 层）
+    └── coordinator.ts agent/pre-step 洋葱圈替换、invalidateCache()、SHA-1 复合指纹
 scripts/
-└── build-client.mjs   生成 lib/client.js（window.__ModuleLoader__.load 形态），
-                       $mount 远端描述符并注册配置面板
+└── build-client.mjs   生成 lib/client.js（window.__ModuleLoader__.load 形态）；
+                       直接复用 lib/config.js 的 DEFAULT_CONFIG 作为单一事实来源
 locale/                zh.json / en.json
 ```
 
@@ -83,6 +86,7 @@ locale/                zh.json / en.json
 - 宿主 RPC 端点由 `ctx.plugin(TypertRemoteService 子类)` 自动发现。
 - 客户端 bundle 必须显式 `ctx.remote.$mount(...)` 自己的描述符——宿主只挂载内置官方贡献。
 - 客户端需要 `inject: ['slots', 'locale', 'configForms', 'remote']`。
+- 缓存失效显式化：`tools/result` 只调用 `coordinator.invalidateCache()`，绝不再用启动闭包值回滚动态 volatile 配置。
 
 ## 开发
 
@@ -90,8 +94,9 @@ locale/                zh.json / en.json
 pnpm install          # 安装 dev + peer 依赖
 pnpm typecheck        # tsc --noEmit
 pnpm build            # tsc 输出 lib/，scripts/build-client.mjs 生成 lib/client.js
-pnpm test             # node --test test/*.test.mjs（16 项单测）
-node test/e2e/isolated-real-acceptance.mjs   # 隔离环境全功能验收
+pnpm test             # node --test test/*.test.mjs（18 项单测）
+pnpm test:e2e         # 隔离环境全功能验收（6 大区 10 项指标）
+node test/verify-real-instance.mjs   # 实机验收套件（5 大域 12 项断言）
 ```
 
 ## 兼容性

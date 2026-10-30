@@ -2,6 +2,22 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的格式。
 
+## [0.2.0] - 2026-10-31
+
+### 架构深度化重构（Deep Module Refactor）
+
+- **缓存失效缝隙**：`InstructionCoordinator` 新增语义化 `invalidateCache()` 方法，`tools/result` 写文件事件仅清除渲染缓存而不再回滚动态 volatile 配置，彻底消除写指令文件后配置被启动闭包值覆盖的隐蔽 Bug。
+- **存储与传输解耦**：将原来内嵌在 Typert Remote 服务中的临时文件与原子重命名落盘逻辑下沉为 `files.ts` 的 `saveGlobalInstructionFile` 领域函数，`remote.ts` 蜕变为纯 RPC 薄适配器（移除 `fs`/`path` 直接依赖），存储逻辑可脱离 Cordis 上下文独立单测。
+- **配置统一解析缝隙**：`resolveConfig` 具身深度解析，原生吸收 volatile `.get()` 访问器或裸对象；`readVolatile` 与 `resolvePluginConfig` 收敛为内部实现，调用方统一只面向 `resolveConfig`。
+- **复合摘要指纹防误判**：渲染缓存指纹由「文件路径+长度」升级为包含 `workspaceDir`、路径、长度与 SHA-1 内容摘要的复合签名，等长文本修改也会被正确感知并强制重新渲染。
+- **死代码剪枝**：移除无调用者的 `getAgentsHomeDir` 导出；`build-client.mjs` 不再手工复制策略默认值，改为直接复用 `lib/config.js` 的 `DEFAULT_CONFIG` 单一事实来源，阻断前后端默认值静默漂移。
+
+### 测试与验收
+
+- 单元测试扩展至 18 项（新增 `invalidateCache` 防配置回滚专项、`saveGlobalInstructionFile` 领域原子写入独立测试）。
+- 新增 `test/verify-real-instance.mjs` 全功能实机验收套件：5 大功能域 12 项严苛断言全部通过。
+- 在全新隔离实例 `test-ctxlift-real` 中完成冷装配与 Web 客户端产物分发验证，真实 Web 服务下 `lib/client.js` 正确由宿主分发。
+
 ## [0.1.3] - 2026-10-29
 
 ### 修复与安全性增强

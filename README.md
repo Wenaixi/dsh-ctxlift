@@ -65,14 +65,18 @@ src/
 ├── index.ts           Host entry: exports { name, inject, Config, apply };
 │                      assembles the coordinator and mounts the RPC service via ctx.plugin
 ├── config.ts          Config Schema (schemastery, all fields volatile, no defaults);
-│                      DEFAULT_CONFIG + resolveConfig for the engine
-├── remote.ts          InstructionsGuardService extends TypertRemoteService,
-│                      @Remote('getGlobalInfo'|'saveGlobalContent'|'switchGlobalFilename')
-└── engine/            render.ts (UTF-8-safe truncation), files.ts (discovery),
-                       coordinator.ts (agent/pre-step onion-skin replacement)
+│                      DEFAULT_CONFIG + resolveConfig (natively unwraps volatile accessors)
+├── remote.ts          InstructionsGuardService extends TypertRemoteService, a thin RPC
+│                      adapter: @Remote('getGlobalInfo'|'saveGlobalContent'|'switchGlobalFilename')
+└── engine/
+    ├── render.ts      UTF-8-safe truncation and granular instruction rendering
+    ├── files.ts       discovery, home boundary isolation, and atomic persistence
+    │                  (saveGlobalInstructionFile keeps fs out of the RPC layer)
+    └── coordinator.ts agent/pre-step onion-skin replacement, invalidateCache(),
+                       SHA-1 composite cache signature (workspaceDir + path + length + digest)
 scripts/
-└── build-client.mjs   Generates lib/client.js as a window.__ModuleLoader__.load bundle
-                       that $mounts the remote descriptors and registers the config panel
+└── build-client.mjs   Generates lib/client.js as a window.__ModuleLoader__.load bundle;
+                       reuses DEFAULT_CONFIG from lib/config.js as the single source of truth
 locale/                zh.json / en.json
 ```
 
@@ -83,6 +87,7 @@ Key contracts (verified against DSH source):
 - Host RPC endpoints are discovered automatically from the `TypertRemoteService` subclass mounted via `ctx.plugin(...)`.
 - The client bundle must explicitly `ctx.remote.$mount(...)` its descriptors — the host only mounts the built-in official contributions.
 - The client needs `inject: ['slots', 'locale', 'configForms', 'remote']`.
+- Cache invalidation is explicit: `tools/result` calls `coordinator.invalidateCache()`, never `updateConfig(...)`, so dynamic volatile config is never reverted to the startup closure value.
 
 ## Development
 
@@ -90,8 +95,9 @@ Key contracts (verified against DSH source):
 pnpm install          # installs dev + peer dependencies
 pnpm typecheck        # tsc --noEmit
 pnpm build            # tsc into lib/, scripts/build-client.mjs generates lib/client.js
-pnpm test             # node --test test/*.test.mjs (16 unit tests)
-node test/e2e/isolated-real-acceptance.mjs   # isolated full-function acceptance
+pnpm test             # node --test test/*.test.mjs (18 unit tests)
+pnpm test:e2e         # isolated full-function acceptance (6 areas, 10 criteria)
+node test/verify-real-instance.mjs   # real-instance suite (5 domains, 12 assertions)
 ```
 
 ## Compatibility
