@@ -2,6 +2,16 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的格式。
 
+## [0.2.1] - 2026-10-31
+
+### 视觉与品牌规范（Branding & Icon Integration）
+
+- **正式插件图标集成**：正式启用「漂游灯笼（Drifting Lantern）」艺术图标，放置于根目录 `dsh-ctxlift.png`。
+- **高保真规格压缩**：原始体积由 818 KiB 压缩至 196.2 KiB（200,927 字节），采用 512×512 Retina 高清抗锯齿采样，严格满足 DSH 宿主 `MAX_ICON_BYTES = 256 * 1024`（256 KiB）体积上限，并保留约 61 KiB 安全余量，杜绝宿主抛出元数据错误。
+- **Manifest 相对路径声明**：在 `package.json` 顶层添加 `"icon": "dsh-ctxlift.png"`，并将图标加入 `files` 发布白名单，宿主读取后自动转码为 Base64 Data URL 供 Web 清单渲染。
+- **图标自动化契约测试**：新增 `test/icon.test.mjs`（3 项专项单测），严格断言文件存在性、相对路径格式、256 KiB 字节上限与 Base64 可逆解码。
+- **探索素材安全归档**：将未选中的 13 张历史参考图移动至 `archive-icons/`，并在 `.gitignore` 中将其忽略，保证仓库与发布包体纯净。
+
 ## [0.2.0] - 2026-10-31
 
 ### 架构深度化重构（Deep Module Refactor）

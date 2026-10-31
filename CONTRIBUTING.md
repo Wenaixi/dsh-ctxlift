@@ -6,7 +6,7 @@
 
 - Node >= 20，pnpm >= 9
 - 克隆后 `pnpm install`（会安装 dev 与 peer 依赖）
-- `pnpm typecheck` / `pnpm build` / `pnpm test` 分别对应类型检查、构建（tsc + build-client）与单测（18 项）
+- `pnpm typecheck` / `pnpm build` / `pnpm test` 分别对应类型检查、构建（tsc + build-client）与单测（21 项，含图标规范）
 - 隔离环境全功能验收：`pnpm test:e2e`（6 大区 10 项指标）
 - 实机验收套件：`node test/verify-real-instance.mjs`（5 大域 12 项断言，含 RPC 原子落盘、SHA-1 复合指纹、ModuleLoader 契约）
 

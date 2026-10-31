@@ -94,7 +94,7 @@ locale/                zh.json / en.json
 pnpm install          # 安装 dev + peer 依赖
 pnpm typecheck        # tsc --noEmit
 pnpm build            # tsc 输出 lib/，scripts/build-client.mjs 生成 lib/client.js
-pnpm test             # node --test test/*.test.mjs（18 项单测）
+pnpm test             # node --test test/*.test.mjs（21 项单测，含图标规范测试）
 pnpm test:e2e         # 隔离环境全功能验收（6 大区 10 项指标）
 node test/verify-real-instance.mjs   # 实机验收套件（5 大域 12 项断言）
 ```
