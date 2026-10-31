@@ -42,3 +42,6 @@ pnpm-debug.log*
 test-results/
 playwright-report/
 coverage/
+
+# 图标探索历史归档（不入库）
+archive-icons/

@@ -34,7 +34,8 @@
     "README.zh-CN.md",
     "LICENSE",
     "CHANGELOG.md",
-    "CONTRIBUTING.md"
+    "CONTRIBUTING.md",
+    "dsh-ctxlift.png"
   ],
   "dsh": {
     "bundle": {
@@ -84,5 +85,6 @@
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "typescript": "^7.0.2"
-  }
+  },
+  "icon": "dsh-ctxlift.png"
 }
