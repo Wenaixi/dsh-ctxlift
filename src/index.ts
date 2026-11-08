@@ -31,8 +31,12 @@ export function apply(ctx: any, rawConfig?: ConfigShape) {
   }
 
   // 2. agent/pre-step 洋葱圈：await next() 后替换官方指令消息
+  //    workingDirectory 服务在 0.2.2-rc.1 才是会话真实目录的权威来源；
+  //    用可选访问而非 inject 依赖，保持「零阻碍激活」不变。
   ctx.on('agent/pre-step', async (payload: any, next: () => Promise<any>) => {
-    return coordinator.handlePreStep(payload, next);
+    const workingDirectory =
+      typeof ctx.get === 'function' ? ctx.get('workingDirectory') : undefined;
+    return coordinator.handlePreStep(payload, next, workingDirectory);
   });
 
   // 3. 监听 volatile 配置热更新：loader 广播被改动的字段路径

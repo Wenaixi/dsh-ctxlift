@@ -8,6 +8,7 @@ import { renderGranularInstructionSet, type RenderResult } from './render.js';
 import type { GranularInstructionsConfig } from '../config.js';
 
 export interface PreStepEventPayload {
+  /** 0.2.2-rc.1 的 agent/pre-step payload 携带 agent 实体（无 cwd 字段） */
   agent?: {
     cwd?: string;
     workspace?: { root?: string };
@@ -23,6 +24,52 @@ export interface PreStepEventPayload {
 export interface DecisionResult {
   messages: any[];
   [key: string]: any;
+}
+
+/** agent.inbox 的 minimal 结构（0.2.2-rc.1 官方 Inbox 接口子集）。 */
+export interface InboxLike {
+  readonly nextStep?: ReadonlyArray<{
+    id?: string;
+    source?: { kind?: string };
+  }>;
+  remove?(messageId: string): boolean;
+  prepend?(target: 'next-step' | 'next-turn', message: unknown): void;
+}
+
+/**
+ * 解析当前步的工作目录。
+ *
+ * 0.2.2-rc.1 起 `agent/pre-step` 的 payload 不再提供 `agent.cwd`（`Agent`
+ * 公开面只有 id，增强面也无 cwd），所以优先通过宿主 workingDirectory 服务
+ * 取会话真实目录；服务缺失或调用失败时回退 payload 与 process.cwd()。
+ */
+async function resolveWorkspaceDir(
+  payload: PreStepEventPayload,
+  workingDirectory: {
+    get?: (session: any) => string;
+    ensure?: (agent: any, signal?: AbortSignal) => Promise<string>;
+  } | undefined
+): Promise<string> {
+  const agent = payload?.agent;
+  if (workingDirectory !== undefined && agent !== undefined) {
+    try {
+      if (typeof workingDirectory.ensure === 'function') {
+        const ensured = await workingDirectory.ensure(agent, payload?.signal);
+        if (typeof ensured === 'string' && ensured.length > 0) return ensured;
+      }
+      const session = (agent as { session?: any }).session;
+      if (typeof workingDirectory.get === 'function' && session !== undefined) {
+        const current = workingDirectory.get(session);
+        if (typeof current === 'string' && current.length > 0) return current;
+      }
+    } catch {
+      // 服务调用失败时静默回退，避免阻断 pre-step 主流程
+    }
+  }
+
+  const legacy =
+    payload?.agent?.cwd ?? payload?.cwd ?? payload?.workspaceDir;
+  return typeof legacy === 'string' && legacy.length > 0 ? legacy : process.cwd();
 }
 
 /**
@@ -91,12 +138,16 @@ export class InstructionCoordinator {
    */
   async handlePreStep(
     payload: PreStepEventPayload,
-    next: () => Promise<DecisionResult>
+    next: () => Promise<DecisionResult>,
+    workingDirectory?: {
+      get?: (session: any) => string;
+      ensure?: (agent: any, signal?: AbortSignal) => Promise<string>;
+    }
   ): Promise<DecisionResult> {
     // 1. 等待下游与内层插件执行完毕
     const decision = await next();
 
-    const workspaceDir = payload?.agent?.cwd ?? payload?.cwd ?? payload?.workspaceDir ?? process.cwd();
+    const workspaceDir = await resolveWorkspaceDir(payload, workingDirectory);
     const rendered = this.getRenderedInstructions(workspaceDir);
 
     // 如果所有文件都被禁用或为空，且有官方指令，则将其移除
@@ -139,8 +190,20 @@ export class InstructionCoordinator {
         messages: newMessages
       };
     } else {
-      // 官方插件未启用或已被禁用：由本插件自主构造标准的指令消息并注入，必须显式提供 changes: []
-      const syntheticMsg = {
+      // 官方注入器本轮尚未把指令 claim 进 messages（其流程是先投 inbox、再由
+      // agent-loop claim）。此时不能合成 `baseline: true` 的消息：官方按
+      // baselineIdentity 判定基线有效性，合成消息会被判为过期基线并与官方
+      // 竞争同一槽位，表现为指令重复或反复横跳。
+      //
+      // 正确做法是沿用官方同款通道：把渲染结果投进 agent.inbox.nextStep，
+      // 不设 baseline / baselineIdentity，让官方下一轮 reconcile 时作为增量处理。
+      const inbox = (payload?.agent as { inbox?: InboxLike } | undefined)?.inbox;
+      if (inbox === undefined) {
+        // 既无官方消息也无 inbox 通道：保持原决策，不制造竞争消息。
+        return decision;
+      }
+
+      const injected = {
         role: 'user',
         content: [
           {
@@ -151,18 +214,19 @@ export class InstructionCoordinator {
         source: {
           kind: 'agent-instructions',
           form: 'instructions',
-          baseline: true,
-          baselineIdentity: 'granular-instructions-guard',
           changes: []
         }
       };
 
-      // 插入到消息序列中
-      const newMessages = [...decision.messages, syntheticMsg];
-      return {
-        ...decision,
-        messages: newMessages
-      };
+      // 同一会话内已有待投递的指令消息时先移除，避免每步累积多份。
+      for (const pending of inbox.nextStep ?? []) {
+        if (pending?.source?.kind === 'agent-instructions' && pending.id) {
+          inbox.remove?.(pending.id);
+        }
+      }
+      inbox.prepend?.('next-step', injected);
+
+      return decision;
     }
   }
 }

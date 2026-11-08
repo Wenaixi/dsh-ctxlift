@@ -64,7 +64,7 @@ test('1. InstructionCoordinator: 精准替换官方插件的消息', async () =>
   }
 });
 
-test('2. InstructionCoordinator: 官方插件关闭时自主注入消息', async () => {
+test('2. InstructionCoordinator: 官方未投递时把指令投进 inbox（不合成竞争消息）', async () => {
   const tempHome = createTempDir('home-syn');
   const tempProject = createTempDir('proj-syn');
   try {
@@ -80,8 +80,9 @@ test('2. InstructionCoordinator: 官方插件关闭时自主注入消息', async
       tempHome
     );
 
+    let prepEventArgs;
     const payload = {
-      agent: { cwd: tempProject },
+      agent: { cwd: tempProject, inbox: { prepend: (...args) => { prepEventArgs = args; }, remove: () => true, nextStep: [] } },
       messages: [],
       step: 1
     };
@@ -92,10 +93,15 @@ test('2. InstructionCoordinator: 官方插件关闭时自主注入消息', async
 
     const result = await coordinator.handlePreStep(payload, next);
 
-    assert.equal(result.messages.length, 2);
-    const synthetic = result.messages[1];
-    assert.equal(synthetic.source.kind, 'agent-instructions');
-    assert.ok(synthetic.content[0].text.includes('全局 CLAUDE 指令'));
+    // 新行为：不往 messages 追加合成消息，避免与官方 agent-instructions 竞争
+    assert.equal(result.messages.length, 1);
+    // 指令应被投递到 inbox.next-step（官方同款通道）
+    assert.ok(prepEventArgs, '应调用 inbox.prepend');
+    assert.equal(prepEventArgs[0], 'next-step');
+    const injected = prepEventArgs[1];
+    assert.equal(injected.source.kind, 'agent-instructions');
+    assert.equal(injected.source.baseline, undefined, '自主投递不得标记 baseline，避免官方判定为过期基线');
+    assert.ok(injected.content[0].text.includes('全局 CLAUDE 指令'));
   } finally {
     cleanTempDir(tempHome);
     cleanTempDir(tempProject);
@@ -117,16 +123,19 @@ test('3. InstructionCoordinator: 注入消息的 source.changes 严格为数组�
       tempHome
     );
 
-    // 场景 A: 自主构造消息 (官方无消息)
+    // 场景 A: 官方无消息时，指令投递到 inbox（不合成到 messages）
+    let prepArgs;
     const resA = await coordinator.handlePreStep(
-      { agent: { cwd: tempProject }, messages: [], step: 1 },
+      { agent: { cwd: tempProject, inbox: { prepend: (...args) => { prepArgs = args; }, remove: () => true, nextStep: [] } }, messages: [], step: 1 },
       async () => ({ messages: [] })
     );
-    const msgA = resA.messages.find(m => m?.source?.kind === 'agent-instructions');
-    assert.ok(msgA);
-    assert.ok(Array.isArray(msgA.source.changes), 'syntheticMsg 必须包含 changes 数组');
+    assert.equal(resA.messages.length, 0, '不应往 messages 追加合成消息');
+    assert.ok(prepArgs, '应调用 inbox.prepend');
+    const injected = prepArgs[1];
+    assert.ok(injected);
+    assert.ok(Array.isArray(injected.source.changes), '投递消息必须包含 changes 数组');
     assert.doesNotThrow(() => {
-      msgA.source.changes.flatMap(c => [c]);
+      injected.source.changes.flatMap(c => [c]);
     });
 
     // 场景 B: 原地替换官方消息，即使官方消息缺少 changes 字段，也能防御性兜底
