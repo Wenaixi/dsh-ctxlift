@@ -180,6 +180,14 @@ export class InstructionCoordinator {
     // 1. 等待下游与内层插件执行完毕（官方与 defaultFn 都已跑完）
     const decision = await next();
 
+    // 决策被 reject 时没有 messages 字段（对齐官方 PreStepDecision 类型：
+    // `{kind:'enter', messages} | {kind:'reject'}`）。官方 agent-instructions
+    // 在 lib/index.js:1486-1488 专门守卫该分支，这里必须同样守卫，否则
+    // decision.messages.map 对 undefined 抛 TypeError 让驱动崩溃。
+    if (decision?.kind === 'reject' || !Array.isArray(decision.messages)) {
+      return decision;
+    }
+
     const workspaceDir = await resolveWorkspaceDir(payload, workingDirectory);
     const rendered = this.getRenderedInstructions(workspaceDir);
 
@@ -189,13 +197,20 @@ export class InstructionCoordinator {
       || '<system-reminder>\nNo workspace instructions are active.\n</system-reminder>';
 
     const agent = (payload as { agent?: unknown }).agent;
-    const alreadyShown = surfaceAlreadyHas(agent, replacementText);
 
-    // 2. 遍历并替换所有 agent-instructions 消息（基线 + delta 全覆盖）
+    // 2. 逐条遍历替换 agent-instructions 消息（基线 + delta 全覆盖）
+    //    去重闸按「本条消息」独立判定，而非整轮一次判定：
+    //    - 消息 content 已是 replacementText（已替换过/内容相同）→ 跳过，幂等
+    //    - 消息 content 是官方原文（增量 delta / 未替换基线）→ 替换为截断文本
+    //    这样增量消息不会被「表面已有同文本」误伤而绕过四层截断。
     let changed = false;
     const newMessages = decision.messages.map((m: any) => {
       if (m?.source?.kind !== 'agent-instructions') return m;
-      if (alreadyShown) return m; // 去重闸：这份文本已在会话表面，跳过
+      const currentText = m?.content?.[0]?.type === 'text'
+        ? m.content[0].text
+        : undefined;
+      if (currentText === replacementText) return m;   // 已替换过 → 幂等跳过
+      if (surfaceAlreadyHas(agent, currentText ?? '')) return m; // 官方原文已在表面 → 跳过
       changed = true;
       return {
         ...m,
