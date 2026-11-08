@@ -26,16 +26,6 @@ export interface DecisionResult {
   [key: string]: any;
 }
 
-/** agent.inbox 的 minimal 结构（0.2.2-rc.1 官方 Inbox 接口子集）。 */
-export interface InboxLike {
-  readonly nextStep?: ReadonlyArray<{
-    id?: string;
-    source?: { kind?: string };
-  }>;
-  remove?(messageId: string): boolean;
-  prepend?(target: 'next-step' | 'next-turn', message: unknown): void;
-}
-
 /**
  * 解析当前步的工作目录。
  *
@@ -70,6 +60,42 @@ async function resolveWorkspaceDir(
   const legacy =
     payload?.agent?.cwd ?? payload?.cwd ?? payload?.workspaceDir;
   return typeof legacy === 'string' && legacy.length > 0 ? legacy : process.cwd();
+}
+
+/**
+ * 会话表面是否已存在相同文本的指令消息（去重闸）。
+ *
+ * 与官方自己用的账本一致（`agent.session.surface.nodes` + `eventAt`）：
+ * 命中说明这份渲染已经进过上下文，不必再次替换，天然杜绝每轮重复追加
+ * 导致的 token 膨胀；session 重放后 surface 恢复，跨重启同样有效。
+ */
+export function surfaceAlreadyHas(agent: unknown, text: string): boolean {
+  if (agent === undefined || agent === null) return false;
+
+  const session = (agent as { session?: any }).session;
+  const surface = session?.surface;
+  const eventAt = session?.eventAt;
+  if (surface?.nodes === undefined || typeof eventAt !== 'function') return false;
+
+  const target = crypto.createHash('sha1').update(text).digest('hex');
+
+  for (const seq of surface.nodes as readonly unknown[]) {
+    let event: any;
+    try {
+      event = eventAt(seq);
+    } catch {
+      continue;
+    }
+    if (event?.type !== 'user/message') continue;
+    if (event.data?.source?.kind !== 'agent-instructions') continue;
+    const contentText = event.data?.content
+      ?.find?.((c: any) => c?.type === 'text')?.text;
+    if (typeof contentText === 'string' && contentText.length > 0 &&
+        crypto.createHash('sha1').update(contentText).digest('hex') === target) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -134,7 +160,14 @@ export class InstructionCoordinator {
   }
 
   /**
-   * 洋葱圈拦截处理函数
+   * 洋葱圈拦截处理函数（合体方案：接管全部 agent-instructions 消息）
+   *
+   * 注册在 pre-step 洋葱最外层（见 src/index.ts `prepend`），`await next()`
+   * 之后决策已包含官方注入的全部指令消息（基线 + 增量 delta）。
+   * 这里把每一条 `source.kind === 'agent-instructions'` 的 content 替换为
+   * 按四层策略渲染后的文本；`source` 原样保留（baseline/baselineIdentity/
+   * changes 是官方的状态账本，改动会触发基线重铺）。去重闸保证相同文本
+   * 不重复替换，杜绝历史累积导致的 token 膨胀。
    */
   async handlePreStep(
     payload: PreStepEventPayload,
@@ -144,89 +177,42 @@ export class InstructionCoordinator {
       ensure?: (agent: any, signal?: AbortSignal) => Promise<string>;
     }
   ): Promise<DecisionResult> {
-    // 1. 等待下游与内层插件执行完毕
+    // 1. 等待下游与内层插件执行完毕（官方与 defaultFn 都已跑完）
     const decision = await next();
 
     const workspaceDir = await resolveWorkspaceDir(payload, workingDirectory);
     const rendered = this.getRenderedInstructions(workspaceDir);
 
-    // 如果所有文件都被禁用或为空，且有官方指令，则将其移除
-    if (!rendered.fullPromptText) {
-      const filtered = decision.messages.filter((m) => m?.source?.kind !== 'agent-instructions');
+    // 指令为空（四层全 disabled 或无文件）：替换为最小提示，不移除消息
+    // （移除会让官方判定基线消失并重铺）、不用空 content（部分 provider 拒绝）。
+    const replacementText = rendered.fullPromptText
+      || '<system-reminder>\nNo workspace instructions are active.\n</system-reminder>';
+
+    const agent = (payload as { agent?: unknown }).agent;
+    const alreadyShown = surfaceAlreadyHas(agent, replacementText);
+
+    // 2. 遍历并替换所有 agent-instructions 消息（基线 + delta 全覆盖）
+    let changed = false;
+    const newMessages = decision.messages.map((m: any) => {
+      if (m?.source?.kind !== 'agent-instructions') return m;
+      if (alreadyShown) return m; // 去重闸：这份文本已在会话表面，跳过
+      changed = true;
       return {
-        ...decision,
-        messages: filtered
-      };
-    }
-
-    // 2. 检查 decision.messages 中是否存在官方插件生成的 agent-instructions 消息
-    const officialMsgIndex = decision.messages.findIndex(
-      (m) => m?.source?.kind === 'agent-instructions'
-    );
-
-    if (officialMsgIndex !== -1) {
-      // 原地精准替换官方消息的 content，保留其原有元数据，同时兜底保证 changes 严格为数组（杜绝上游 flatMap 崩溃）
-      const targetMsg = decision.messages[officialMsgIndex];
-      const targetSource = targetMsg?.source ?? {};
-      const updatedMsg = {
-        ...targetMsg,
+        ...m,
         content: [
           {
             type: 'text',
-            text: rendered.fullPromptText
+            text: replacementText
           }
-        ],
-        source: {
-          ...targetSource,
-          changes: Array.isArray(targetSource.changes) ? targetSource.changes : []
-        }
+        ]
+        // source 原样保留：不动 baseline / baselineIdentity / changes
       };
+    });
 
-      const newMessages = [...decision.messages];
-      newMessages[officialMsgIndex] = updatedMsg;
-
-      return {
-        ...decision,
-        messages: newMessages
-      };
-    } else {
-      // 官方注入器本轮尚未把指令 claim 进 messages（其流程是先投 inbox、再由
-      // agent-loop claim）。此时不能合成 `baseline: true` 的消息：官方按
-      // baselineIdentity 判定基线有效性，合成消息会被判为过期基线并与官方
-      // 竞争同一槽位，表现为指令重复或反复横跳。
-      //
-      // 正确做法是沿用官方同款通道：把渲染结果投进 agent.inbox.nextStep，
-      // 不设 baseline / baselineIdentity，让官方下一轮 reconcile 时作为增量处理。
-      const inbox = (payload?.agent as { inbox?: InboxLike } | undefined)?.inbox;
-      if (inbox === undefined) {
-        // 既无官方消息也无 inbox 通道：保持原决策，不制造竞争消息。
-        return decision;
-      }
-
-      const injected = {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: rendered.fullPromptText
-          }
-        ],
-        source: {
-          kind: 'agent-instructions',
-          form: 'instructions',
-          changes: []
-        }
-      };
-
-      // 同一会话内已有待投递的指令消息时先移除，避免每步累积多份。
-      for (const pending of inbox.nextStep ?? []) {
-        if (pending?.source?.kind === 'agent-instructions' && pending.id) {
-          inbox.remove?.(pending.id);
-        }
-      }
-      inbox.prepend?.('next-step', injected);
-
-      return decision;
-    }
+    if (!changed) return decision;
+    return {
+      ...decision,
+      messages: newMessages
+    };
   }
 }

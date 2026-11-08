@@ -1,9 +1,12 @@
 /**
  * DSH 工作区指令精细化截断插件（宿主入口）
  *
- * 与官方 agent-instructions 的差异：本插件用"四层策略"精细控制
- * 全局 / 项目 CLAUDE.md / 项目 AGENTS.md / 子目录 四个来源的截断行为，
- * 并在 agent/pre-step 洋葱圈中替换官方注入的指令消息。
+ * 与官方 agent-instructions 的关系：本插件是它的「精细截断层」。官方负责
+ * 基线/增量的投递，本插件注册在 agent/pre-step 洋葱**最外层**（prepend），
+ * 在官方注入之后接管全部 `source.kind === 'agent-instructions'` 消息：
+ * 把 content 换成按四层策略渲染后的文本，`source` 原样保留（不动官方的
+ * baseline/baselineIdentity/changes 状态账本），并用会话表面去重闸保证
+ * 相同文本不重复替换，杜绝历史累积导致的 token 膨胀。
  *
  * 装配范式照搬 ponytail：Config Schema 全 volatile、Remote 服务用 ctx.plugin 挂载，
  * 事件一律通过洋葱圈后置步骤注入。

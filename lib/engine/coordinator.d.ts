@@ -24,17 +24,14 @@ export interface DecisionResult {
     messages: any[];
     [key: string]: any;
 }
-/** agent.inbox 的 minimal 结构（0.2.2-rc.1 官方 Inbox 接口子集）。 */
-export interface InboxLike {
-    readonly nextStep?: ReadonlyArray<{
-        id?: string;
-        source?: {
-            kind?: string;
-        };
-    }>;
-    remove?(messageId: string): boolean;
-    prepend?(target: 'next-step' | 'next-turn', message: unknown): void;
-}
+/**
+ * 会话表面是否已存在相同文本的指令消息（去重闸）。
+ *
+ * 与官方自己用的账本一致（`agent.session.surface.nodes` + `eventAt`）：
+ * 命中说明这份渲染已经进过上下文，不必再次替换，天然杜绝每轮重复追加
+ * 导致的 token 膨胀；session 重放后 surface 恢复，跨重启同样有效。
+ */
+export declare function surfaceAlreadyHas(agent: unknown, text: string): boolean;
 /**
  * 拦截协调器
  */
@@ -53,7 +50,14 @@ export declare class InstructionCoordinator {
      */
     getRenderedInstructions(workspaceDir: string): RenderResult;
     /**
-     * 洋葱圈拦截处理函数
+     * 洋葱圈拦截处理函数（合体方案：接管全部 agent-instructions 消息）
+     *
+     * 注册在 pre-step 洋葱最外层（见 src/index.ts `prepend`），`await next()`
+     * 之后决策已包含官方注入的全部指令消息（基线 + 增量 delta）。
+     * 这里把每一条 `source.kind === 'agent-instructions'` 的 content 替换为
+     * 按四层策略渲染后的文本；`source` 原样保留（baseline/baselineIdentity/
+     * changes 是官方的状态账本，改动会触发基线重铺）。去重闸保证相同文本
+     * 不重复替换，杜绝历史累积导致的 token 膨胀。
      */
     handlePreStep(payload: PreStepEventPayload, next: () => Promise<DecisionResult>, workingDirectory?: {
         get?: (session: any) => string;

@@ -64,7 +64,7 @@ test('1. InstructionCoordinator: 精准替换官方插件的消息', async () =>
   }
 });
 
-test('2. InstructionCoordinator: 官方未投递时把指令投进 inbox（不合成竞争消息）', async () => {
+test('2. InstructionCoordinator: 无 agent-instructions 消息时不注入（不自主投递）', async () => {
   const tempHome = createTempDir('home-syn');
   const tempProject = createTempDir('proj-syn');
   try {
@@ -80,9 +80,8 @@ test('2. InstructionCoordinator: 官方未投递时把指令投进 inbox（不�
       tempHome
     );
 
-    let prepEventArgs;
     const payload = {
-      agent: { cwd: tempProject, inbox: { prepend: (...args) => { prepEventArgs = args; }, remove: () => true, nextStep: [] } },
+      agent: { cwd: tempProject },
       messages: [],
       step: 1
     };
@@ -93,22 +92,17 @@ test('2. InstructionCoordinator: 官方未投递时把指令投进 inbox（不�
 
     const result = await coordinator.handlePreStep(payload, next);
 
-    // 新行为：不往 messages 追加合成消息，避免与官方 agent-instructions 竞争
+    // 合体方案：注入通道归官方，ctxlift 只接管官方消息。
+    // 无 agent-instructions 消息时不自主投递 → 原样返回。
     assert.equal(result.messages.length, 1);
-    // 指令应被投递到 inbox.next-step（官方同款通道）
-    assert.ok(prepEventArgs, '应调用 inbox.prepend');
-    assert.equal(prepEventArgs[0], 'next-step');
-    const injected = prepEventArgs[1];
-    assert.equal(injected.source.kind, 'agent-instructions');
-    assert.equal(injected.source.baseline, undefined, '自主投递不得标记 baseline，避免官方判定为过期基线');
-    assert.ok(injected.content[0].text.includes('全局 CLAUDE 指令'));
+    assert.equal(result.messages[0].content, '你好');
   } finally {
     cleanTempDir(tempHome);
     cleanTempDir(tempProject);
   }
 });
 
-test('3. InstructionCoordinator: 注入消息的 source.changes 严格为数组（杜绝 flatMap 崩溃）', async () => {
+test('3. InstructionCoordinator: 接管替换基线+delta，source 原样保留（杜绝 state 账本破坏）', async () => {
   const tempHome = createTempDir('home-flatmap');
   const tempProject = createTempDir('proj-flatmap');
   try {
@@ -123,38 +117,37 @@ test('3. InstructionCoordinator: 注入消息的 source.changes 严格为数组�
       tempHome
     );
 
-    // 场景 A: 官方无消息时，指令投递到 inbox（不合成到 messages）
-    let prepArgs;
+    // 场景 A: 官方注入基线消息 → 替换 content、source 原样保留
+    const baselineSource = { kind: 'agent-instructions', baseline: true, baselineIdentity: 'abc', changes: [{ action: 'set', scope: 'user-global', path: '~/.dsh/AGENTS.md', digest: 'd1' }] };
     const resA = await coordinator.handlePreStep(
-      { agent: { cwd: tempProject, inbox: { prepend: (...args) => { prepArgs = args; }, remove: () => true, nextStep: [] } }, messages: [], step: 1 },
-      async () => ({ messages: [] })
+      { agent: { cwd: tempProject }, messages: [], step: 1 },
+      async () => ({
+        messages: [{ role: 'user', content: [{ type: 'text', text: '官方原文' }], source: baselineSource }]
+      })
     );
-    assert.equal(resA.messages.length, 0, '不应往 messages 追加合成消息');
-    assert.ok(prepArgs, '应调用 inbox.prepend');
-    const injected = prepArgs[1];
-    assert.ok(injected);
-    assert.ok(Array.isArray(injected.source.changes), '投递消息必须包含 changes 数组');
+    const msgA = resA.messages.find(m => m?.source?.kind === 'agent-instructions');
+    assert.ok(msgA, '应保留 agent-instructions 消息');
+    assert.notEqual(msgA.content[0].text, '官方原文', 'content 应被替换');
+    assert.ok(msgA.content[0].text.includes('全局指令'));
+    assert.deepEqual(msgA.source, baselineSource, 'source 必须原样保留（state 账本不可改）');
+    assert.ok(Array.isArray(msgA.source.changes), 'changes 仍为数组');
     assert.doesNotThrow(() => {
-      injected.source.changes.flatMap(c => [c]);
+      msgA.source.changes.flatMap(c => [c]);
     });
 
-    // 场景 B: 原地替换官方消息，即使官方消息缺少 changes 字段，也能防御性兜底
+    // 场景 B: 官方注入 delta 增量消息（无 baseline）→ 同样被接管替换
+    const deltaSource = { kind: 'agent-instructions', changes: [{ action: 'replace', scope: '.', path: 'CLAUDE.md', digest: 'd2' }] };
     const resB = await coordinator.handlePreStep(
       { agent: { cwd: tempProject }, messages: [], step: 1 },
       async () => ({
-        messages: [{
-          role: 'user',
-          content: [{ type: 'text', text: '原消息' }],
-          source: { kind: 'agent-instructions', baseline: true }
-        }]
+        messages: [{ role: 'user', content: [{ type: 'text', text: 'delta 原文全文未截断' }], source: deltaSource }]
       })
     );
     const msgB = resB.messages.find(m => m?.source?.kind === 'agent-instructions');
     assert.ok(msgB);
-    assert.ok(Array.isArray(msgB.source.changes), 'updatedMsg 必须兜底补齐 changes 数组');
-    assert.doesNotThrow(() => {
-      msgB.source.changes.flatMap(c => [c]);
-    });
+    assert.notEqual(msgB.content[0].text, 'delta 原文全文未截断', 'delta content 也应被接管替换');
+    assert.ok(msgB.content[0].text.includes('全局指令'));
+    assert.deepEqual(msgB.source, deltaSource, 'delta source 原样保留');
   } finally {
     cleanTempDir(tempHome);
     cleanTempDir(tempProject);
