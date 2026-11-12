@@ -2,6 +2,14 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的格式。
 
+## [0.2.2] - 2026-11-13
+
+### 修复（DSH 0.2.2-rc.2 兼容适配）
+
+- **Reject 守卫**：`handlePreStep` 对 `decision.kind === 'reject'`（或 messages 非数组）短路返回，对齐官方 `agent-instructions` 的类型守卫（`lib/index.js:1486`），杜绝下游插件 reject 时对 `undefined.messages.map` 抛 TypeError 导致驱动崩溃。
+- **逐条消息去重**：将「整轮一次去重」改为「按本条消息独立判定」——消息已是替换文本则幂等跳过、官方原文已在会话表面则跳过，增量 delta 消息不再被「表面已有同文本」误伤而绕过四层截断。
+- **测试**：`coordinator.test.mjs` 新增 reject 守卫与逐条去重用例（全套 23 项通过）。
+
 ## [0.2.1] - 2026-10-31
 
 ### 视觉与品牌规范（Branding & Icon Integration）
