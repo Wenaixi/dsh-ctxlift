@@ -193,3 +193,69 @@ test('4. InstructionCoordinator: invalidateCache 显式失效缓存并保留活�
     cleanTempDir(tempProject);
   }
 });
+
+test('5. InstructionCoordinator: reject 决策守卫（无 messages 不崩溃）', async () => {
+  const tempHome = createTempDir('home-reject');
+  const tempProject = createTempDir('proj-reject');
+  try {
+    fs.mkdirSync(path.join(tempProject, '.git'), { recursive: true });
+    fs.writeFileSync(path.join(tempHome, 'AGENTS.md'), '# 全局指令\n', 'utf-8');
+
+    const coordinator = new InstructionCoordinator(
+      { ...DEFAULT_CONFIG, globalPolicy: { mode: 'unlimited' } },
+      tempHome
+    );
+
+    // 模拟用户审批拒绝：官方 PreStepDecision kind=reject 无 messages
+    const result = await coordinator.handlePreStep(
+      { agent: { cwd: tempProject }, messages: [], step: 1 },
+      async () => ({ kind: 'reject' })
+    );
+
+    assert.deepEqual(result, { kind: 'reject' }, 'reject 决策原样返回，不崩溃');
+  } finally {
+    cleanTempDir(tempHome);
+    cleanTempDir(tempProject);
+  }
+});
+
+test('6. InstructionCoordinator: 增量消息不被去重闸误伤（官方原文被替换为截断文本）', async () => {
+  const tempHome = createTempDir('home-delta');
+  const tempProject = createTempDir('proj-delta');
+  try {
+    fs.mkdirSync(path.join(tempProject, '.git'), { recursive: true });
+    fs.writeFileSync(path.join(tempHome, 'AGENTS.md'), '# 全局截断版\n', 'utf-8');
+
+    const coordinator = new InstructionCoordinator(
+      { ...DEFAULT_CONFIG, globalPolicy: { mode: 'unlimited' } },
+      tempHome
+    );
+
+    // 场景：表面已有截断文本，但本轮消息是官方增量（带原文全文）
+    const session = {
+      surface: { nodes: [0] },
+      eventAt: () => ({
+        type: 'user/message',
+        data: { source: { kind: 'agent-instructions' }, content: [{ type: 'text', text: '<system-reminder>\nInstructions from: ~/.dsh/AGENTS.md\n\n# 全局截断版\n</system-reminder>' }] }
+      })
+    };
+    const res = await coordinator.handlePreStep(
+      { agent: { cwd: tempProject, session }, messages: [{ role: 'user', content: 'hi' }], step: 2 },
+      async () => ({
+        kind: 'enter',
+        messages: [
+          { role: 'user', content: 'hi' },
+          { role: 'user', content: [{ type: 'text', text: 'Updated instructions from: CLAUDE.md\n\n这是官方原文全文很长' }], source: { kind: 'agent-instructions', changes: [{ action: 'replace' }] } }
+        ]
+      })
+    );
+
+    const delta = res.messages.find(m => m?.source?.kind === 'agent-instructions');
+    assert.ok(delta, 'delta 消息存在');
+    assert.notEqual(delta.content[0].text, 'Updated instructions from: CLAUDE.md\n\n这是官方原文全文很长', 'delta 官方原文应被替换');
+    assert.ok(delta.content[0].text.includes('全局截断版'), 'delta 替换为截断文本');
+  } finally {
+    cleanTempDir(tempHome);
+    cleanTempDir(tempProject);
+  }
+});
