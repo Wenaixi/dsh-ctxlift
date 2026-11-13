@@ -15,6 +15,7 @@
 import { Config, resolvePluginConfig } from './config.js';
 import type { Config as ConfigShape } from './config.js';
 import { InstructionCoordinator } from './engine/coordinator.js';
+import { shouldInvalidateCache } from './engine/cache-invalidation.js';
 import { InstructionsGuardService } from './remote.js';
 
 export const name = 'dsh-ctxlift';
@@ -54,12 +55,12 @@ export function apply(ctx: any, rawConfig?: ConfigShape) {
     }
   });
 
-  // 4. 监听 tools/result：文件编辑/写入完成后失效渲染缓存
-  ctx.on('tools/result', (event: any) => {
-    const toolName = event?.tool?.name ?? event?.name;
-    if (toolName === 'write' || toolName === 'edit' || toolName === 'ops_replace') {
-      coordinator.invalidateCache();
-    }
+  // 4. 监听 tools/result：文件编辑/写入完成后失效渲染缓存。
+  //    事件真实签名是 (exec, result)（dsh-tools/lib/types/events.d.ts:48），
+  //    工具名在 exec.name 上；旧实现把它当单参 event 读 event.tool.name，
+  //    该字段不存在，判断恒为 false，导致改完指令文件后缓存永不失效。
+  ctx.on('tools/result', (exec: any) => {
+    if (shouldInvalidateCache(exec)) coordinator.invalidateCache();
   });
 }
 
