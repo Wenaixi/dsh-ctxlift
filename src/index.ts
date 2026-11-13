@@ -29,7 +29,9 @@ export function apply(ctx: any, rawConfig?: ConfigShape) {
 
   // 1. 挂载 Typert Remote 服务：ctx.plugin(ServiceClass, deps) 第二参即构造参数
   if (typeof (ctx as { plugin?: unknown }).plugin === 'function') {
-    ctx.plugin(InstructionsGuardService);
+    ctx.plugin(InstructionsGuardService, {
+      getPreference: () => resolvePluginConfig(rawConfig).globalPreference
+    });
   } else {
     ctx.logger?.debug?.('[dsh-ctxlift] ctx.plugin unavailable, remote service skipped');
   }

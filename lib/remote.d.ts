@@ -6,6 +6,7 @@
  */
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import type { Context } from '@deepseek-ai/cordis';
+import type { GlobalFilePreference } from './config.js';
 import { type GlobalFileResolution, type SaveGlobalFileResult } from './engine/files.js';
 export interface SaveGlobalPayload {
     filename: 'AGENTS.md' | 'CLAUDE.md';
@@ -24,7 +25,9 @@ export interface SwitchGlobalResult extends GlobalFileResolution {
  */
 export declare class InstructionsGuardService extends TypertRemoteService {
     private readonly customDshHome?;
-    constructor(ctx: Context, customDshHome?: string);
+    /** 全局文件偏好；由 apply 传入，供编辑器侧解析与引擎实际加载保持一致。 */
+    private readonly getPreference;
+    constructor(ctx: Context, customDshHome?: string, getPreference?: () => GlobalFilePreference);
     /**
      * 读取全局指令文件元数据与内容
      */

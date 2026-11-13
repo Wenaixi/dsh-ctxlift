@@ -7,6 +7,7 @@
 
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import type { Context } from '@deepseek-ai/cordis';
+import type { GlobalFilePreference } from './config.js';
 import {
   getDshHomeDir,
   resolveGlobalInstructionFile,
@@ -36,10 +37,17 @@ export interface SwitchGlobalResult extends GlobalFileResolution {
  */
 export class InstructionsGuardService extends TypertRemoteService {
   private readonly customDshHome?: string;
+  /** 全局文件偏好；由 apply 传入，供编辑器侧解析与引擎实际加载保持一致。 */
+  private readonly getPreference: () => GlobalFilePreference;
 
-  constructor(ctx: Context, customDshHome?: string) {
+  constructor(
+    ctx: Context,
+    customDshHome?: string,
+    getPreference?: () => GlobalFilePreference
+  ) {
     super(ctx, 'instructionsGuard', { namespace: 'dsh-ctxlift' });
     this.customDshHome = customDshHome;
+    this.getPreference = getPreference ?? (() => 'auto');
   }
 
   /**
@@ -48,7 +56,9 @@ export class InstructionsGuardService extends TypertRemoteService {
   @Remote('getGlobalInfo')
   async getGlobalInfo(): Promise<GlobalFileResolution> {
     const dshHome = this.customDshHome ?? getDshHomeDir();
-    return resolveGlobalInstructionFile('auto', dshHome);
+    // 必须使用用户的 globalPreference：硬编码 'auto' 会让编辑器显示的文件
+    // 与引擎实际加载的不一致（偏好 claude 但两份都在时，auto 选 AGENTS.md）
+    return resolveGlobalInstructionFile(this.getPreference(), dshHome);
   }
 
   /**
