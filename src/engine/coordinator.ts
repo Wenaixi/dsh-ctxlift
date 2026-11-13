@@ -52,8 +52,11 @@ async function resolveWorkspaceDir(
         const current = workingDirectory.get(session);
         if (typeof current === 'string' && current.length > 0) return current;
       }
-    } catch {
-      // 服务调用失败时静默回退，避免阻断 pre-step 主流程
+    } catch (err) {
+      // 用户中断必须继续向上传播：payload.signal 已传进 ensure，中断时抛
+      // AbortError；吞掉它会让取消信号失效，长任务无法中止。
+      if ((err as { name?: string } | undefined)?.name === 'AbortError') throw err;
+      // 其余服务失败静默回退，避免阻断 pre-step 主流程
     }
   }
 
