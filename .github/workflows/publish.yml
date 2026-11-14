@@ -42,16 +42,23 @@ jobs:
       - name: 发布到 npm
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          if npm view "dsh-ctxlift@$VERSION" version --json 2>/dev/null | grep -q "$VERSION"; then
+          # 判据：先看 npm view 的退出码，只有命令成功且返回的版本号精确等于
+          # 当前版本才算已发布。原实现直接用 grep 匹配字符串，npm view 报 E404
+          # 时错误文本里也含版本号，会被误判成「已发布」而静默跳过。
+          PUBLISHED=""
+          if PUBLISHED_JSON=$(npm view "dsh-ctxlift@$VERSION" version --json 2>/dev/null); then
+            PUBLISHED=$(printf '%s' "$PUBLISHED_JSON" | tr -d '"[:space:]')
+          fi
+          if [ "$PUBLISHED" = "$VERSION" ]; then
             echo "dsh-ctxlift@$VERSION 已发布，跳过"
             exit 0
           fi
-          if [ -n "$NPM_TOKEN" ]; then
-            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc
-            npm publish --access public
-          else
-            npm publish --access public --provenance
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::error::缺少 NPM_TOKEN，无法发布" >&2
+            exit 1
           fi
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc
+          npm publish --access public
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
