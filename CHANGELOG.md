@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-14
+
+### Fixed
+
+- `tools/result` 监听器签名错误。事件的真实签名是 `(exec, result)`，工具名在 `exec.name`；旧代码把它当单参事件对象读 `event.tool.name`，该字段不存在，判断恒为 false。结果是改完 `AGENTS.md` / `CLAUDE.md` 后渲染缓存不失效，注入的仍是旧内容。工具清单同时改为官方 `dsh-tool-fs` 的 `write` / `edit` / `apply_patch`，删掉并不存在的 `ops_replace`。
+- `remote.getGlobalInfo` 硬编码 `'auto'`，忽略用户的 `globalPreference`。偏好设为 `claude` 且两份文件都存在时，Web 端编辑器显示 `AGENTS.md`，引擎实际加载 `CLAUDE.md`。
+- `resolveWorkspaceDir` 的 `catch {}` 吞掉 `workingDirectory.ensure` 抛出的 `AbortError`，取消信号失效。改为只对该错误继续向上传播，其余异常仍静默回退。
+
 ## [0.2.2] - 2026-11-13
 
 ### Fixed
