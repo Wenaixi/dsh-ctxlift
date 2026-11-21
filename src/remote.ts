@@ -32,6 +32,19 @@ export interface SwitchGlobalResult extends GlobalFileResolution {
 }
 
 /**
+ * 服务构造选项。
+ *
+ * 之所以用对象而非位置参数：cordis 的 `ctx.plugin(Service, config)` 只会
+ * 把 `config` 交给构造函数的第二个参数，第三参恒为 `undefined`。
+ */
+export interface InstructionsGuardOptions {
+  /** 自定义 DSH 用户目录；缺省时回落到 `$DSH_HOME` 或 `~/.dsh`。 */
+  customDshHome?: string;
+  /** 全局文件偏好读取器；必须在每次调用时现读，以跟随宿主的配置热更新。 */
+  getPreference?: () => GlobalFilePreference;
+}
+
+/**
  * 指令守卫宿主服务。
  * 注意：signal 必须声明在业务参数之后（网关按方法签名反射，signal 非末位会直接拒绝）。
  */
@@ -42,12 +55,18 @@ export class InstructionsGuardService extends TypertRemoteService {
 
   constructor(
     ctx: Context,
-    customDshHome?: string,
+    options?: InstructionsGuardOptions | string,
     getPreference?: () => GlobalFilePreference
   ) {
     super(ctx, 'instructionsGuard', { namespace: 'dsh-ctxlift' });
-    this.customDshHome = customDshHome;
-    this.getPreference = getPreference ?? (() => 'auto');
+    // ctx.plugin(Service, config) 只把 config 交给构造函数的第二个参数，
+    // 第三参恒为 undefined。因此这里同时接受 options 对象与旧的字符串传法，
+    // 否则 getPreference 会静默退化成 'auto'，编辑器显示的文件与引擎实际
+    // 加载的不一致（偏好 claude 且两份都在时，auto 会选 AGENTS.md）。
+    const opts: InstructionsGuardOptions =
+      typeof options === 'string' ? { customDshHome: options, getPreference } : (options ?? {});
+    this.customDshHome = opts.customDshHome;
+    this.getPreference = opts.getPreference ?? getPreference ?? (() => 'auto');
   }
 
   /**

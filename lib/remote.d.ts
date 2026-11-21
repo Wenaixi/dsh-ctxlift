@@ -20,6 +20,18 @@ export interface SwitchGlobalResult extends GlobalFileResolution {
     ok: boolean;
 }
 /**
+ * 服务构造选项。
+ *
+ * 之所以用对象而非位置参数：cordis 的 `ctx.plugin(Service, config)` 只会
+ * 把 `config` 交给构造函数的第二个参数，第三参恒为 `undefined`。
+ */
+export interface InstructionsGuardOptions {
+    /** 自定义 DSH 用户目录；缺省时回落到 `$DSH_HOME` 或 `~/.dsh`。 */
+    customDshHome?: string;
+    /** 全局文件偏好读取器；必须在每次调用时现读，以跟随宿主的配置热更新。 */
+    getPreference?: () => GlobalFilePreference;
+}
+/**
  * 指令守卫宿主服务。
  * 注意：signal 必须声明在业务参数之后（网关按方法签名反射，signal 非末位会直接拒绝）。
  */
@@ -27,7 +39,7 @@ export declare class InstructionsGuardService extends TypertRemoteService {
     private readonly customDshHome?;
     /** 全局文件偏好；由 apply 传入，供编辑器侧解析与引擎实际加载保持一致。 */
     private readonly getPreference;
-    constructor(ctx: Context, customDshHome?: string, getPreference?: () => GlobalFilePreference);
+    constructor(ctx: Context, options?: InstructionsGuardOptions | string, getPreference?: () => GlobalFilePreference);
     /**
      * 读取全局指令文件元数据与内容
      */
