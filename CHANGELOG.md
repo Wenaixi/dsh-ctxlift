@@ -7,6 +7,20 @@
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-21
+
+### Fixed
+
+- **RPC 失败时面板永久卡死**：`props.mutate` / `props.saveGlobal` / `props.switchGlobal`
+  三处 UI 调用只写 `then` 分支。RPC 抛错（宿主重启、连接断开）时 `setBusy(false)`
+  不执行，卡片从此不可操作，并产生 unhandled rejection。三处补 `catch`，统一复位
+  busy 并显示错误。
+
+### Docs
+
+- 新增 `docs/compatibility.md`：`agent/pre-step` 洋葱圈契约、`workingDirectory` 为何
+  用可选访问而非 inject、`ctx.plugin` 单参构造导致 `getPreference` 落空的真实案例。
+
 ## [0.2.4] - 2026-11-21
 
 ### Fixed
