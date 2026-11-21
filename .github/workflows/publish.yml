@@ -62,9 +62,18 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: 解析 release tag
+        id: tag
+        # github.ref_name 在 tag 触发时是 v<version>，但 workflow_dispatch 手动触发时
+        # 是分支名（如 main），直接当 tag_name 会让 action-gh-release 报
+        # 「GitHub Releases requires a tag」。统一从 package.json 推导。
+        run: |
+          VERSION=$(node -p "require('./package.json').version" 2>/dev/null || jq -r .version package.json)
+          echo "name=v$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: ${{ steps.tag.outputs.name }}
           generate_release_notes: true
