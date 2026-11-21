@@ -7,6 +7,17 @@
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-21
+
+### Fixed
+
+- **`getPreference` 静默退化为 `auto`**：cordis 的 `ctx.plugin(Service, config)` 只把
+  `config` 交给构造函数的第二个参数，第三参恒为 `undefined`。旧签名
+  `(ctx, customDshHome, getPreference)` 因此让偏好读取器落空，服务回退到 `auto`，
+  导致编辑器显示的文件与引擎实际加载的不一致（偏好 `claude` 且两份都在时，
+  `auto` 会选 `AGENTS.md`）。构造改为接受 `InstructionsGuardOptions` 对象，
+  并保留字符串位置传法的向后兼容；新增两条回归测试锁死该契约。
+
 ## [0.2.3] - 2026-11-14
 
 ### Fixed
