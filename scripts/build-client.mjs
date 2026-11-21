@@ -370,6 +370,11 @@ const content = `window.__ModuleLoader__.load({
           } else {
             setNote(t("toast.rejected"));
           }
+        }).catch(function (err) {
+          // RPC 抛错（宿主重启、连接断开）时也必须解锁 UI：否则 busy 永不复位，
+          // 整个卡片从此不可操作。
+          setBusy(false);
+          setNote(t("editor.error", { msg: err && err.message ? err.message : String(err) }));
         });
       };
 
@@ -437,6 +442,9 @@ const content = `window.__ModuleLoader__.load({
         props.saveGlobal(info.activeFilename, draft).then(function (ok) {
           setBusy(false);
           setNote(ok ? t("editor.saved") : t("editor.error", { msg: "save failed" }));
+        }).catch(function (err) {
+          setBusy(false);
+          setNote(t("editor.error", { msg: err && err.message ? err.message : String(err) }));
         });
       };
 
@@ -448,6 +456,9 @@ const content = `window.__ModuleLoader__.load({
         props.switchGlobal(target).then(function (ok) {
           setBusy(false);
           if (!ok) setNote(t("editor.error", { msg: "switch failed" }));
+        }).catch(function (err) {
+          setBusy(false);
+          setNote(t("editor.error", { msg: err && err.message ? err.message : String(err) }));
         });
       };
 
