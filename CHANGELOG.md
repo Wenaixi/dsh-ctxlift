@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-25
+
+### Changed
+
+- **cordis 4.2 兼容**：`@deepseek-ai/cordis` peer 区间由 `~4.1.0` 放宽为
+  `>=4.1.0 <5.0.0`。`~` 前缀不跨 minor，DSH 0.2.3 系列携带 cordis 4.2 时该声明
+  直接失效；新区间同时覆盖 4.1 与 4.2 两代。`@deepseek-ai/schemastery` 同步放宽为
+  `>=3.19.0 <4.0.0`，`engines.dsh` 补上 `<0.3.0-0` 上界。
+
 ## [0.2.5] - 2026-11-21
 
 ### Fixed
